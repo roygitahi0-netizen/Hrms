@@ -1,10 +1,97 @@
+import re
 from flask import Blueprint, request, jsonify, g
 from app.extensions import db
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.employee import Employee, EmploymentStatus
+from app.models.leave import LeaveType, LeaveBalance
 from app.utils.rbac import generate_token, token_required, can_view_sensitive_info
 from app.utils.audit import log_audit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json() or {}
+
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    first_name = data.get('first_name', '').strip()
+    last_name = data.get('last_name', '').strip()
+    role = data.get('role', UserRole.EMPLOYEE)
+
+    # Validations
+    if not email or not EMAIL_REGEX.match(email):
+        return jsonify({'success': False, 'message': 'Please provide a valid email address'}), 400
+
+    if not password or len(password) < 6:
+        return jsonify({'success': False, 'message': 'Password must be at least 6 characters long'}), 400
+
+    if not first_name or not last_name:
+        return jsonify({'success': False, 'message': 'First name and last name are required'}), 400
+
+    if role not in UserRole.ALL:
+        role = UserRole.EMPLOYEE
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({'success': False, 'message': 'An account with this email already exists'}), 400
+
+    # 1. Create User account with bcrypt hashing
+    user = User(email=email, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    # 2. Auto-generate employee code
+    count = Employee.query.count() + 1
+    employee_code = f"EMP-{count:03d}"
+    while Employee.query.filter_by(employee_code=employee_code).first():
+        count += 1
+        employee_code = f"EMP-{count:03d}"
+
+    # 3. Create Employee profile
+    employee = Employee(
+        user_id=user.id,
+        employee_code=employee_code,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        phone=data.get('phone', ''),
+        address=data.get('address', ''),
+        employment_status=EmploymentStatus.FULL_TIME
+    )
+    db.session.add(employee)
+    db.session.commit()
+
+    # 4. Create default leave balances
+    leave_types = LeaveType.query.all()
+    current_year = user.created_at.year
+    for lt in leave_types:
+        lb = LeaveBalance(
+            employee_id=employee.id,
+            leave_type_id=lt.id,
+            year=current_year,
+            allocated_days=lt.default_days_per_year,
+            used_days=0
+        )
+        db.session.add(lb)
+    db.session.commit()
+
+    token = generate_token(user)
+    log_audit('USER_REGISTER', 'User', target_id=user.id, details=f"New user registered: {first_name} {last_name} ({email})", user_id=user.id)
+
+    return jsonify({
+        'success': True,
+        'message': 'Registration successful',
+        'token': token,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'role': user.role,
+            'employee': employee.to_dict(include_sensitive=False)
+        }
+    }), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -75,6 +162,9 @@ def change_password():
 
     if not old_password or not new_password:
         return jsonify({'success': False, 'message': 'Both old and new passwords are required'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': 'New password must be at least 6 characters long'}), 400
 
     user = g.current_user
     if not user.check_password(old_password):

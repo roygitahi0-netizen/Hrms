@@ -1,5 +1,5 @@
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+import bcrypt
 from app.extensions import db
 
 class UserRole:
@@ -27,10 +27,18 @@ class User(db.Model):
     audit_logs = db.relationship('AuditLog', backref='user', lazy=True)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        # Generate salt and hash with bcrypt
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        self.password_hash = hashed.decode('utf-8')
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        if not self.password_hash:
+            return False
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+        except Exception:
+            return False
 
     def to_dict(self):
         emp = self.employee_profile
