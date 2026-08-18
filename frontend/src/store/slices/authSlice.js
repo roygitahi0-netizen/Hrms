@@ -17,7 +17,24 @@ export const loginUser = createAsyncThunk(
       return { token, user };
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || 'Login failed. Please check credentials.'
+        error.response?.data?.message || 'Login failed. Please check your credentials.'
+      );
+    }
+  }
+);
+
+export const registerUser = createAsyncThunk(
+  'auth/registerUser',
+  async (registerData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/auth/register', registerData);
+      const { token, user } = response.data;
+      localStorage.setItem('hrms_token', token);
+      localStorage.setItem('hrms_user', JSON.stringify(user));
+      return { token, user };
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Registration failed. Please check your details.'
       );
     }
   }
@@ -79,6 +96,21 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Register
+      .addCase(registerUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+      })
+      .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

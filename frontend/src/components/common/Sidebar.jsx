@@ -7,8 +7,7 @@ import {
   Building2,
   Calendar,
   Clock,
-  ShieldCheck,
-  Award
+  ShieldCheck
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -29,10 +28,10 @@ const Sidebar = () => {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div className="logo-badge">HR</div>
+        <div className="logo-badge">TH</div>
         <div>
-          <h1 className="logo-text">Pulse HRMS</h1>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Organization Suite</span>
+          <h1 className="logo-text">Team Hub</h1>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Workforce Suite</span>
         </div>
       </div>
 
@@ -54,7 +53,7 @@ const Sidebar = () => {
 
       <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-          HRMS Enterprise v1.0.0
+          Team Hub Enterprise v2.0
         </div>
       </div>
     </aside>

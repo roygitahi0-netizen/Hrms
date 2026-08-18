@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 
 import Sidebar from './components/common/Sidebar';
 import Header from './components/common/Header';
@@ -11,6 +10,7 @@ import EmployeeModal from './components/employees/EmployeeModal';
 import LeaveModal from './components/leaves/LeaveModal';
 import DepartmentModal from './components/departments/DepartmentModal';
 
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import EmployeesPage from './pages/EmployeesPage';
@@ -39,7 +39,10 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        {/* Public Login Route */}
+        {/* Public Landing Page */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Public Auth Route (Login & Registration Tabbed) */}
         <Route path="/login" element={<LoginPage />} />
 
         {/* Protected Authenticated Routes */}
@@ -58,8 +61,8 @@ const App = () => {
           </Route>
         </Route>
 
-        {/* Fallback Catch-all */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
