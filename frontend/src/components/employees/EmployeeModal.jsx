@@ -21,6 +21,7 @@ const EmployeeModal = () => {
     last_name: '',
     email: '',
     phone: '',
+    country: '',
     address: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
@@ -42,6 +43,7 @@ const EmployeeModal = () => {
         last_name: modalData.last_name || '',
         email: modalData.email || '',
         phone: modalData.phone || '',
+        country: modalData.country || '',
         address: modalData.address || '',
         emergency_contact_name: modalData.emergency_contact_name || '',
         emergency_contact_phone: modalData.emergency_contact_phone || '',
@@ -116,19 +118,20 @@ const EmployeeModal = () => {
           </div>
         </div>
 
+        <div className="form-group">
+          <label className="form-label">Email Address *</label>
+          <input
+            type="email"
+            name="email"
+            className="form-control"
+            value={formData.email}
+            onChange={handleChange}
+            disabled={isEditing}
+            required
+          />
+        </div>
+
         <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Email Address *</label>
-            <input
-              type="email"
-              name="email"
-              className="form-control"
-              value={formData.email}
-              onChange={handleChange}
-              disabled={isEditing}
-              required
-            />
-          </div>
           <div className="form-group">
             <label className="form-label">Phone Number</label>
             <input
@@ -138,6 +141,17 @@ const EmployeeModal = () => {
               value={formData.phone}
               onChange={handleChange}
               placeholder="+1 (555) 000-0000"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Country</label>
+            <input
+              type="text"
+              name="country"
+              className="form-control"
+              value={formData.country}
+              onChange={handleChange}
+              placeholder="e.g. Kenya, United States"
             />
           </div>
         </div>

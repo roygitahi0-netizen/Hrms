@@ -1,38 +1,39 @@
-import re
 from flask import Blueprint, request, jsonify, g
+from marshmallow import ValidationError
 from app.extensions import db
 from app.models.user import User, UserRole
 from app.models.employee import Employee, EmploymentStatus
 from app.models.leave import LeaveType, LeaveBalance
+from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema
 from app.utils.rbac import generate_token, token_required, can_view_sensitive_info
 from app.utils.audit import log_audit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
-EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+registration_schema = UserRegistrationSchema()
+login_schema = UserLoginSchema()
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json() or {}
 
-    email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
-    first_name = data.get('first_name', '').strip()
-    last_name = data.get('last_name', '').strip()
-    role = data.get('role', UserRole.EMPLOYEE)
+    try:
+        validated_data = registration_schema.load(data)
+    except ValidationError as err:
+        # Extract first validation error for display
+        messages = []
+        for field, err_list in err.messages.items():
+            messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
+        first_msg = messages[0] if messages else "Validation failed"
+        return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
 
-    # Validations
-    if not email or not EMAIL_REGEX.match(email):
-        return jsonify({'success': False, 'message': 'Please provide a valid email address'}), 400
-
-    if not password or len(password) < 6:
-        return jsonify({'success': False, 'message': 'Password must be at least 6 characters long'}), 400
-
-    if not first_name or not last_name:
-        return jsonify({'success': False, 'message': 'First name and last name are required'}), 400
-
-    if role not in UserRole.ALL:
-        role = UserRole.EMPLOYEE
+    email = validated_data['email'].strip().lower()
+    password = validated_data['password']
+    first_name = validated_data['first_name'].strip()
+    last_name = validated_data['last_name'].strip()
+    phone = validated_data.get('phone', '').strip() if validated_data.get('phone') else ''
+    country = validated_data.get('country', '').strip() if validated_data.get('country') else ''
+    role = validated_data.get('role', UserRole.EMPLOYEE)
 
     if User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'An account with this email already exists'}), 400
@@ -50,14 +51,15 @@ def register():
         count += 1
         employee_code = f"EMP-{count:03d}"
 
-    # 3. Create Employee profile
+    # 3. Create Employee profile with phone and country
     employee = Employee(
         user_id=user.id,
         employee_code=employee_code,
         first_name=first_name,
         last_name=last_name,
         email=email,
-        phone=data.get('phone', ''),
+        phone=phone,
+        country=country,
         address=data.get('address', ''),
         employment_status=EmploymentStatus.FULL_TIME
     )
@@ -79,7 +81,7 @@ def register():
     db.session.commit()
 
     token = generate_token(user)
-    log_audit('USER_REGISTER', 'User', target_id=user.id, details=f"New user registered: {first_name} {last_name} ({email})", user_id=user.id)
+    log_audit('USER_REGISTER', 'User', target_id=user.id, details=f"New user registered: {first_name} {last_name} ({email}) - {role}", user_id=user.id)
 
     return jsonify({
         'success': True,
@@ -96,11 +98,18 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
-    email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
 
-    if not email or not password:
-        return jsonify({'success': False, 'message': 'Email and password are required'}), 400
+    try:
+        validated_data = login_schema.load(data)
+    except ValidationError as err:
+        messages = []
+        for field, err_list in err.messages.items():
+            messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
+        first_msg = messages[0] if messages else "Validation failed"
+        return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
+
+    email = validated_data['email'].strip().lower()
+    password = validated_data['password']
 
     user = User.query.filter_by(email=email).first()
     if not user or not user.check_password(password):

@@ -18,6 +18,7 @@ class Employee(db.Model):
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(30), nullable=True)
+    country = db.Column(db.String(50), nullable=True)
     address = db.Column(db.String(255), nullable=True)
     emergency_contact_name = db.Column(db.String(100), nullable=True)
     emergency_contact_phone = db.Column(db.String(30), nullable=True)
@@ -76,6 +77,7 @@ class Employee(db.Model):
             'full_name': f"{self.first_name} {self.last_name}",
             'email': self.email,
             'phone': self.phone,
+            'country': self.country,
             'address': self.address,
             'emergency_contact_name': self.emergency_contact_name,
             'emergency_contact_phone': self.emergency_contact_phone,

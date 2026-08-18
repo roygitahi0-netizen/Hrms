@@ -130,7 +130,7 @@ const EmployeesPage = () => {
                   <th>Employee Code</th>
                   <th>Full Name</th>
                   <th>Department & Position</th>
-                  <th>Contact Info</th>
+                  <th>Contact Info & Location</th>
                   <th>Status</th>
                   <th>Hire Date</th>
                   {isAdminOrHR && showSensitiveInfo && <th>Salary ($)</th>}
@@ -159,6 +159,7 @@ const EmployeesPage = () => {
                     </td>
                     <td>
                       <div style={{ fontSize: '0.85rem' }}>{emp.phone || 'N/A'}</div>
+                      {emp.country && <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>📍 {emp.country}</div>}
                     </td>
                     <td>
                       <span className="badge badge-present">{emp.employment_status?.replace('_', ' ')}</span>
