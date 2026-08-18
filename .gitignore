@@ -1,0 +1,13 @@
+# Python / Flask
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+*.db
+.env
+
+# Node / React
+node_modules/
+dist/
+.vite/
+*.log
