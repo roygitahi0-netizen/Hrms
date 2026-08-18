@@ -4,16 +4,15 @@ import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { loginUser, registerUser, clearAuthError } from '../store/slices/authSlice';
 import api from '../services/api';
 import {
-  User,
   Lock,
   Mail,
-  Phone,
-  Globe,
   ArrowRight,
-  ShieldCheck,
   Building2,
   Check,
-  Briefcase,
+  Code,
+  Users,
+  TrendingUp,
+  DollarSign,
   Info
 } from 'lucide-react';
 
@@ -30,12 +29,10 @@ const LoginPage = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Register form state
+  // Register form state (Phone & Country excluded per user request)
   const [regFirstName, setRegFirstName] = useState('');
   const [regLastName, setRegLastName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regCountry, setRegCountry] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regDepartmentId, setRegDepartmentId] = useState('');
@@ -60,13 +57,14 @@ const LoginPage = () => {
         }
       })
       .catch(() => {
-        // Fallback default list if API unauthenticated
-        setDepartmentsList([
-          { id: 1, name: 'Engineering' },
-          { id: 2, name: 'Human Resources' },
-          { id: 3, name: 'Sales & Marketing' },
-          { id: 4, name: 'Finance' },
-        ]);
+        // Fallback default list
+        const fallbackDepts = [
+          { id: 1, name: 'Engineering', code: 'ENG' },
+          { id: 2, name: 'Human Resources', code: 'HR' },
+          { id: 3, name: 'Sales & Marketing', code: 'SALES' },
+          { id: 4, name: 'Finance', code: 'FIN' },
+        ];
+        setDepartmentsList(fallbackDepts);
         setRegDepartmentId(1);
       });
   }, []);
@@ -109,16 +107,56 @@ const LoginPage = () => {
       first_name: regFirstName,
       last_name: regLastName,
       email: regEmail,
-      phone: regPhone,
-      country: regCountry,
       password: regPassword,
       department_id: Number(regDepartmentId)
     }));
   };
 
+  // High-contrast, eligible department styling definitions
+  const departmentStyleMap = {
+    'Engineering': {
+      accentColor: '#00f2fe',
+      bgColor: 'rgba(0, 242, 254, 0.12)',
+      borderColor: 'rgba(0, 242, 254, 0.5)',
+      desc: 'Technical software, systems & DevOps engineering',
+      icon: Code
+    },
+    'Human Resources': {
+      accentColor: '#8b5cf6',
+      bgColor: 'rgba(139, 92, 246, 0.12)',
+      borderColor: 'rgba(139, 92, 246, 0.5)',
+      desc: 'People operations, talent acquisition & culture',
+      icon: Users
+    },
+    'Sales & Marketing': {
+      accentColor: '#10b981',
+      bgColor: 'rgba(16, 185, 129, 0.12)',
+      borderColor: 'rgba(16, 185, 129, 0.5)',
+      desc: 'Client outreach, revenue growth & brand marketing',
+      icon: TrendingUp
+    },
+    'Finance': {
+      accentColor: '#f59e0b',
+      bgColor: 'rgba(245, 158, 11, 0.12)',
+      borderColor: 'rgba(245, 158, 11, 0.5)',
+      desc: 'Financial planning, accounting & payroll operations',
+      icon: DollarSign
+    }
+  };
+
+  const getDeptStyle = (name) => {
+    return departmentStyleMap[name] || {
+      accentColor: '#00f2fe',
+      bgColor: 'rgba(0, 242, 254, 0.12)',
+      borderColor: 'rgba(0, 242, 254, 0.5)',
+      desc: 'Company functional operational unit',
+      icon: Building2
+    };
+  };
+
   return (
     <div className="auth-wrapper">
-      <div className="glass-card auth-card" style={{ maxWidth: activeTab === 'register' ? '640px' : '480px' }}>
+      <div className="glass-card auth-card" style={{ maxWidth: activeTab === 'register' ? '600px' : '480px' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div className="logo-badge" style={{ margin: '0 auto 0.85rem', width: '52px', height: '52px', fontSize: '1.5rem' }}>
@@ -177,7 +215,7 @@ const LoginPage = () => {
                   style={{ paddingLeft: '2.5rem' }}
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  placeholder="admin@teamhub.com"
                   required
                 />
                 <Mail size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -214,7 +252,7 @@ const LoginPage = () => {
             </button>
           </form>
         ) : (
-          /* Tab 2: Registration Form */
+          /* Tab 2: Registration Form (Clean - Excludes Phone & Country) */
           <form onSubmit={handleRegisterSubmit}>
             <div className="form-row">
               <div className="form-group">
@@ -258,57 +296,6 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Department Selection Picker */}
-            <div className="form-group">
-              <label className="form-label">Company Department *</label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  className="form-control"
-                  style={{ paddingLeft: '2.5rem' }}
-                  value={regDepartmentId}
-                  onChange={(e) => setRegDepartmentId(e.target.value)}
-                  required
-                >
-                  {departmentsList.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name} Department</option>
-                  ))}
-                </select>
-                <Building2 size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent-cyan)' }} />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Phone Number</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="tel"
-                    className="form-control"
-                    style={{ paddingLeft: '2.5rem' }}
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="+1 (555) 000-0000"
-                  />
-                  <Phone size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Country</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="form-control"
-                    style={{ paddingLeft: '2.5rem' }}
-                    value={regCountry}
-                    onChange={(e) => setRegCountry(e.target.value)}
-                    placeholder="e.g. Kenya, United States"
-                  />
-                  <Globe size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                </div>
-              </div>
-            </div>
-
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Password * (Min 6, 1 Letter & 1 Number)</label>
@@ -335,6 +322,56 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {/* Vibrant, High-Contrast Company Department Cards Picker */}
+            <div className="form-group" style={{ marginTop: '0.5rem' }}>
+              <label className="form-label" style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Select Company Department *</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Eligible Department Assignment</span>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                {departmentsList.map((d) => {
+                  const style = getDeptStyle(d.name);
+                  const isSelected = String(regDepartmentId) === String(d.id);
+                  const Icon = style.icon;
+
+                  return (
+                    <div
+                      key={d.id}
+                      onClick={() => setRegDepartmentId(d.id)}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: 'var(--radius-md)',
+                        background: isSelected ? style.bgColor : 'rgba(255, 255, 255, 0.03)',
+                        border: `2px solid ${isSelected ? style.accentColor : 'var(--border-color)'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: isSelected ? `0 0 15px ${style.bgColor}` : 'none',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Icon size={18} color={style.accentColor} />
+                          <span style={{ fontWeight: 800, fontSize: '0.92rem', color: isSelected ? style.accentColor : '#ffffff' }}>
+                            {d.name}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: style.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Check size={12} color="#000000" strokeWidth={3} />
+                          </div>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '0.74rem', color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        {style.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Department Role Policy Banner */}
             <div
               style={{
@@ -348,14 +385,14 @@ const LoginPage = () => {
                 color: 'var(--text-secondary)',
                 fontSize: '0.8rem',
                 marginTop: '0.5rem',
-                marginBottom: '1rem'
+                marginBottom: '1.25rem'
               }}
             >
               <Info size={20} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div>
                 <strong style={{ color: 'var(--accent-cyan)' }}>Automated Department Access</strong>
                 <p style={{ marginTop: '2px' }}>
-                  Your account will automatically log into your selected department. Specific managerial roles (Manager, HR Staff, Admin) are granted by Admin verification.
+                  Your account will automatically log into your selected department. Specific managerial roles (Manager, HR Staff, Admin) are governed by Admin verification.
                 </p>
               </div>
             </div>
