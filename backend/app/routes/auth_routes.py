@@ -3,15 +3,18 @@ from marshmallow import ValidationError
 from app.extensions import db
 from app.models.user import User, UserRole
 from app.models.employee import Employee, EmploymentStatus
+from app.models.department import Department
 from app.models.leave import LeaveType, LeaveBalance
-from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema
-from app.utils.rbac import generate_token, token_required, can_view_sensitive_info
+from app.models.audit_log import AuditLog
+from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema, UserEligibilityUpdateSchema
+from app.utils.rbac import generate_token, token_required, role_required, can_view_sensitive_info
 from app.utils.audit import log_audit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 registration_schema = UserRegistrationSchema()
 login_schema = UserLoginSchema()
+eligibility_schema = UserEligibilityUpdateSchema()
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -20,7 +23,6 @@ def register():
     try:
         validated_data = registration_schema.load(data)
     except ValidationError as err:
-        # Extract first validation error for display
         messages = []
         for field, err_list in err.messages.items():
             messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
@@ -31,15 +33,20 @@ def register():
     password = validated_data['password']
     first_name = validated_data['first_name'].strip()
     last_name = validated_data['last_name'].strip()
+    department_id = validated_data['department_id']
     phone = validated_data.get('phone', '').strip() if validated_data.get('phone') else ''
     country = validated_data.get('country', '').strip() if validated_data.get('country') else ''
-    role = validated_data.get('role', UserRole.EMPLOYEE)
+
+    # Verify Department exists
+    dept = Department.query.get(department_id)
+    if not dept:
+        return jsonify({'success': False, 'message': 'Selected department does not exist'}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'An account with this email already exists'}), 400
 
-    # 1. Create User account with bcrypt hashing
-    user = User(email=email, role=role)
+    # 1. Create User account with EMPLOYEE role by default
+    user = User(email=email, role=UserRole.EMPLOYEE, is_active=True)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -51,7 +58,7 @@ def register():
         count += 1
         employee_code = f"EMP-{count:03d}"
 
-    # 3. Create Employee profile with phone and country
+    # 3. Create Employee profile with assigned department
     employee = Employee(
         user_id=user.id,
         employee_code=employee_code,
@@ -60,6 +67,7 @@ def register():
         email=email,
         phone=phone,
         country=country,
+        department_id=department_id,
         address=data.get('address', ''),
         employment_status=EmploymentStatus.FULL_TIME
     )
@@ -81,11 +89,11 @@ def register():
     db.session.commit()
 
     token = generate_token(user)
-    log_audit('USER_REGISTER', 'User', target_id=user.id, details=f"New user registered: {first_name} {last_name} ({email}) - {role}", user_id=user.id)
+    log_audit('USER_REGISTER', 'User', target_id=user.id, details=f"New user registered: {first_name} {last_name} ({email}) assigned to {dept.name}", user_id=user.id)
 
     return jsonify({
         'success': True,
-        'message': 'Registration successful',
+        'message': f'Registration successful in {dept.name} department',
         'token': token,
         'user': {
             'id': user.id,
@@ -116,13 +124,16 @@ def login():
         log_audit('LOGIN_FAILED', 'User', details=f"Failed login attempt for {email}")
         return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
 
+    # Admin Eligibility Check
     if not user.is_active:
-        return jsonify({'success': False, 'message': 'Account is deactivated. Contact HR or Admin.'}), 403
+        log_audit('LOGIN_BLOCKED', 'User', target_id=user.id, details=f"Inactive account login attempt for {email}")
+        return jsonify({'success': False, 'message': 'Account pending Admin eligibility approval or deactivated.'}), 403
 
     token = generate_token(user)
-    log_audit('LOGIN_SUCCESS', 'User', target_id=user.id, details=f"User {user.email} logged in", user_id=user.id)
-
     emp = user.employee_profile
+    dept_name = emp.department.name if emp and emp.department else "Unassigned"
+    log_audit('LOGIN_SUCCESS', 'User', target_id=user.id, details=f"User {user.email} ({user.role}) logged in to {dept_name}", user_id=user.id)
+
     include_sensitive = can_view_sensitive_info(user, emp)
     emp_data = emp.to_dict(include_sensitive=include_sensitive) if emp else None
 
@@ -134,6 +145,7 @@ def login():
             'id': user.id,
             'email': user.email,
             'role': user.role,
+            'is_active': user.is_active,
             'employee': emp_data
         }
     })
@@ -152,6 +164,7 @@ def me():
             'id': user.id,
             'email': user.email,
             'role': user.role,
+            'is_active': user.is_active,
             'employee': emp_data
         }
     })
@@ -162,25 +175,74 @@ def logout():
     log_audit('LOGOUT', 'User', target_id=g.current_user.id, details=f"User {g.current_user.email} logged out", user_id=g.current_user.id)
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
-@auth_bp.route('/change-password', methods=['POST'])
+@auth_bp.route('/users', methods=['GET'])
 @token_required
-def change_password():
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+def list_users_eligibility():
+    """Admin / HR route to list all users, eligibility status, department, role, and last login time."""
+    users = User.query.all()
+    user_list = []
+    for u in users:
+        emp = u.employee_profile
+        # Find last login audit log entry
+        last_login_log = AuditLog.query.filter_by(user_id=u.id, action='LOGIN_SUCCESS').order_by(AuditLog.timestamp.desc()).first()
+        user_list.append({
+            'id': u.id,
+            'email': u.email,
+            'role': u.role,
+            'is_active': u.is_active,
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+            'last_login': last_login_log.timestamp.isoformat() if last_login_log else None,
+            'employee': emp.to_dict(include_sensitive=False) if emp else None
+        })
+
+    return jsonify({
+        'success': True,
+        'users': user_list
+    })
+
+@auth_bp.route('/users/<int:user_id>/eligibility', methods=['PUT'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+def update_user_eligibility(user_id):
+    """Admin / HR route to update a user's role, department, or active eligibility status."""
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({'success': False, 'message': 'User account not found'}), 404
+
     data = request.get_json() or {}
-    old_password = data.get('old_password', '')
-    new_password = data.get('new_password', '')
 
-    if not old_password or not new_password:
-        return jsonify({'success': False, 'message': 'Both old and new passwords are required'}), 400
+    try:
+        validated_data = eligibility_schema.load(data)
+    except ValidationError as err:
+        return jsonify({'success': False, 'message': 'Invalid update payload', 'errors': err.messages}), 400
 
-    if len(new_password) < 6:
-        return jsonify({'success': False, 'message': 'New password must be at least 6 characters long'}), 400
+    if 'role' in validated_data and validated_data['role']:
+        target_user.role = validated_data['role']
 
-    user = g.current_user
-    if not user.check_password(old_password):
-        return jsonify({'success': False, 'message': 'Incorrect current password'}), 400
+    if 'is_active' in validated_data and validated_data['is_active'] is not None:
+        target_user.is_active = validated_data['is_active']
 
-    user.set_password(new_password)
+    emp = target_user.employee_profile
+    if emp and 'department_id' in validated_data:
+        dept_id = validated_data['department_id']
+        if dept_id:
+            dept = Department.query.get(dept_id)
+            if dept:
+                emp.department_id = dept_id
+
     db.session.commit()
 
-    log_audit('CHANGE_PASSWORD', 'User', target_id=user.id, details="Password updated", user_id=user.id)
-    return jsonify({'success': True, 'message': 'Password changed successfully'})
+    log_audit('UPDATE_USER_ELIGIBILITY', 'User', target_id=target_user.id, details=f"Updated eligibility for {target_user.email}: Role={target_user.role}, Active={target_user.is_active}")
+
+    return jsonify({
+        'success': True,
+        'message': f'Eligibility and role for {target_user.email} updated successfully.',
+        'user': {
+            'id': target_user.id,
+            'email': target_user.email,
+            'role': target_user.role,
+            'is_active': target_user.is_active,
+            'employee': emp.to_dict(include_sensitive=False) if emp else None
+        }
+    })

@@ -5,6 +5,7 @@ import { fetchTodayStatus, clockIn, clockOut } from '../store/slices/attendanceS
 import { fetchLeaveBalances, fetchLeaveRequests, updateLeaveStatus } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import StatCard from '../components/common/StatCard';
+import UserAccessWidget from '../components/admin/UserAccessWidget';
 import {
   Users,
   Building2,
@@ -142,6 +143,9 @@ const DashboardPage = () => {
           color="var(--accent-amber)"
         />
       </div>
+
+      {/* User Access & Eligibility Control Panel for Admins & HR Staff */}
+      {['ADMIN', 'HR_STAFF'].includes(role) && <UserAccessWidget />}
 
       {/* Secondary Dashboard Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>

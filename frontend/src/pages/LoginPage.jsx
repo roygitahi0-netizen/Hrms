@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { loginUser, registerUser, clearAuthError } from '../store/slices/authSlice';
+import api from '../services/api';
 import {
   User,
   Lock,
@@ -10,10 +11,10 @@ import {
   Globe,
   ArrowRight,
   ShieldCheck,
-  Briefcase,
-  UserCheck,
   Building2,
-  Check
+  Check,
+  Briefcase,
+  Info
 } from 'lucide-react';
 
 const LoginPage = () => {
@@ -37,13 +38,38 @@ const LoginPage = () => {
   const [regCountry, setRegCountry] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
-  const [regRole, setRegRole] = useState('EMPLOYEE');
+  const [regDepartmentId, setRegDepartmentId] = useState('');
   const [validationError, setValidationError] = useState('');
+
+  // Departments list for registration
+  const [departmentsList, setDepartmentsList] = useState([]);
 
   useEffect(() => {
     dispatch(clearAuthError());
     setValidationError('');
   }, [activeTab, dispatch]);
+
+  useEffect(() => {
+    // Fetch departments for department selector
+    api.get('/departments')
+      .then((res) => {
+        const depts = res.data.departments || [];
+        setDepartmentsList(depts);
+        if (depts.length > 0) {
+          setRegDepartmentId(depts[0].id);
+        }
+      })
+      .catch(() => {
+        // Fallback default list if API unauthenticated
+        setDepartmentsList([
+          { id: 1, name: 'Engineering' },
+          { id: 2, name: 'Human Resources' },
+          { id: 3, name: 'Sales & Marketing' },
+          { id: 4, name: 'Finance' },
+        ]);
+        setRegDepartmentId(1);
+      });
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -58,6 +84,11 @@ const LoginPage = () => {
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
     setValidationError('');
+
+    if (!regDepartmentId) {
+      setValidationError('Please select your company department.');
+      return;
+    }
 
     if (regPassword.length < 6) {
       setValidationError('Password must be at least 6 characters long.');
@@ -81,48 +112,9 @@ const LoginPage = () => {
       phone: regPhone,
       country: regCountry,
       password: regPassword,
-      role: regRole
+      department_id: Number(regDepartmentId)
     }));
   };
-
-  const roleOptions = [
-    {
-      id: 'EMPLOYEE',
-      title: 'Employee',
-      desc: 'Self-service profile & attendance clocking',
-      badgeClass: 'badge-employee',
-      accentColor: '#10b981',
-      bgColor: 'rgba(16, 185, 129, 0.12)',
-      icon: User
-    },
-    {
-      id: 'MANAGER',
-      title: 'Manager',
-      desc: 'Team oversight & direct report approvals',
-      badgeClass: 'badge-manager',
-      accentColor: '#f59e0b',
-      bgColor: 'rgba(245, 158, 11, 0.12)',
-      icon: Briefcase
-    },
-    {
-      id: 'HR_STAFF',
-      title: 'HR Staff',
-      desc: 'Operations, salary & leave management',
-      badgeClass: 'badge-hr',
-      accentColor: '#00f2fe',
-      bgColor: 'rgba(0, 242, 254, 0.12)',
-      icon: Building2
-    },
-    {
-      id: 'ADMIN',
-      title: 'Admin',
-      desc: 'Full system ownership & audit logging',
-      badgeClass: 'badge-admin',
-      accentColor: '#8b5cf6',
-      bgColor: 'rgba(139, 92, 246, 0.12)',
-      icon: ShieldCheck
-    }
-  ];
 
   return (
     <div className="auth-wrapper">
@@ -266,6 +258,25 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {/* Department Selection Picker */}
+            <div className="form-group">
+              <label className="form-label">Company Department *</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  className="form-control"
+                  style={{ paddingLeft: '2.5rem' }}
+                  value={regDepartmentId}
+                  onChange={(e) => setRegDepartmentId(e.target.value)}
+                  required
+                >
+                  {departmentsList.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name} Department</option>
+                  ))}
+                </select>
+                <Building2 size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent-cyan)' }} />
+              </div>
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Phone Number</label>
@@ -324,63 +335,40 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Vibrant & Eligible Role Selector Cards */}
-            <div className="form-group" style={{ marginTop: '0.5rem' }}>
-              <label className="form-label" style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Select Desired System Role *</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Eligible Access Level</span>
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                {roleOptions.map((opt) => {
-                  const isSelected = regRole === opt.id;
-                  const Icon = opt.icon;
-                  return (
-                    <div
-                      key={opt.id}
-                      onClick={() => setRegRole(opt.id)}
-                      style={{
-                        padding: '0.85rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: isSelected ? opt.bgColor : 'rgba(255, 255, 255, 0.03)',
-                        border: `2px solid ${isSelected ? opt.accentColor : 'var(--border-color)'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        boxShadow: isSelected ? `0 0 15px ${opt.bgColor}` : 'none',
-                        position: 'relative'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Icon size={18} color={opt.accentColor} />
-                          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: isSelected ? opt.accentColor : '#ffffff' }}>
-                            {opt.title}
-                          </span>
-                        </div>
-                        {isSelected && (
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: opt.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Check size={12} color="#000000" strokeWidth={3} />
-                          </div>
-                        )}
-                      </div>
-                      <p style={{ fontSize: '0.75rem', color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        {opt.desc}
-                      </p>
-                    </div>
-                  );
-                })}
+            {/* Department Role Policy Banner */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                padding: '0.85rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(0, 242, 254, 0.08)',
+                border: '1px solid rgba(0, 242, 254, 0.2)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                marginTop: '0.5rem',
+                marginBottom: '1rem'
+              }}
+            >
+              <Info size={20} color="var(--accent-cyan)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong style={{ color: 'var(--accent-cyan)' }}>Automated Department Access</strong>
+                <p style={{ marginTop: '2px' }}>
+                  Your account will automatically log into your selected department. Specific managerial roles (Manager, HR Staff, Admin) are granted by Admin verification.
+                </p>
               </div>
             </div>
 
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ width: '100%', marginTop: '1rem', padding: '0.85rem' }}
+              style={{ width: '100%', padding: '0.85rem' }}
               disabled={loading}
             >
               {loading ? 'Creating Account...' : (
                 <>
-                  Create Account & Enter Portal <ArrowRight size={18} />
+                  Register & Access Department <ArrowRight size={18} />
                 </>
               )}
             </button>

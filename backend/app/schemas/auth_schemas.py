@@ -23,12 +23,12 @@ class UserRegistrationSchema(Schema):
         validate=validate.Length(min=1, error="Last name is required."),
         error_messages={"required": "Last name is required."}
     )
+    department_id = fields.Int(
+        required=True,
+        error_messages={"required": "Please select your company department."}
+    )
     phone = fields.Str(required=False, allow_none=True)
     country = fields.Str(required=False, allow_none=True)
-    role = fields.Str(
-        required=False,
-        validate=validate.OneOf(['ADMIN', 'HR_STAFF', 'MANAGER', 'EMPLOYEE'], error="Invalid role specified.")
-    )
 
 class UserLoginSchema(Schema):
     email = fields.Email(
@@ -39,3 +39,11 @@ class UserLoginSchema(Schema):
         required=True,
         error_messages={"required": "Password is required."}
     )
+
+class UserEligibilityUpdateSchema(Schema):
+    role = fields.Str(
+        required=False,
+        validate=validate.OneOf(['ADMIN', 'HR_STAFF', 'MANAGER', 'EMPLOYEE'], error="Invalid role specified.")
+    )
+    department_id = fields.Int(required=False, allow_none=True)
+    is_active = fields.Bool(required=False)

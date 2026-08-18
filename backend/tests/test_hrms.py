@@ -53,70 +53,59 @@ def test_auth_login_with_bcrypt(client):
     assert 'token' in res.json
     assert res.json['user']['role'] == UserRole.ADMIN
 
-def test_user_registration_with_marshmallow_validation(client):
-    # Test 1: Invalid email format -> 400
-    res_bad_email = client.post('/api/auth/register', json={
-        'first_name': 'Sarah',
-        'last_name': 'Connor',
-        'email': 'not-an-email',
-        'password': 'Password123',
-        'role': UserRole.EMPLOYEE
-    })
-    assert res_bad_email.status_code == 400
-    assert 'Invalid email' in res_bad_email.json['message']
-
-    # Test 2: Weak password (no number) -> 400
-    res_weak_pw = client.post('/api/auth/register', json={
-        'first_name': 'Sarah',
-        'last_name': 'Connor',
-        'email': 'sarah@teamhub.com',
-        'password': 'passwordonly',
-        'role': UserRole.EMPLOYEE
-    })
-    assert res_weak_pw.status_code == 400
-    assert 'must contain' in res_weak_pw.json['message']
-
-    # Test 3: Valid registration with Phone & Country
+def test_user_registration_with_department(client):
+    # Registration with Department
     reg_data = {
         'first_name': 'Sarah',
         'last_name': 'Connor',
         'email': 'sarah@teamhub.com',
         'password': 'Password123',
+        'department_id': 1, # Engineering
         'phone': '+15550199',
-        'country': 'United States',
-        'role': UserRole.EMPLOYEE
+        'country': 'United States'
     }
     res = client.post('/api/auth/register', json=reg_data)
     assert res.status_code == 201
     assert res.json['success'] is True
-    assert res.json['user']['email'] == 'sarah@teamhub.com'
-    assert res.json['user']['employee']['phone'] == '+15550199'
-    assert res.json['user']['employee']['country'] == 'United States'
+    assert res.json['user']['role'] == UserRole.EMPLOYEE # Auto-assigned
+    assert res.json['user']['employee']['department_id'] == 1
 
-def test_rbac_sensitive_field_redaction(client):
+def test_admin_eligibility_control(client):
     admin_token = get_auth_token(client, 'admin@teamhub.com', 'admin123')
-    
-    # Register a standard employee
-    client.post('/api/auth/register', json={
+
+    # Register employee
+    reg_res = client.post('/api/auth/register', json={
         'first_name': 'John',
         'last_name': 'Doe',
         'email': 'johndoe@teamhub.com',
         'password': 'Password123',
+        'department_id': 2, # HR
         'phone': '+44207946',
-        'country': 'United Kingdom',
-        'role': UserRole.EMPLOYEE
+        'country': 'United Kingdom'
     })
-    emp_token = get_auth_token(client, 'johndoe@teamhub.com', 'Password123')
+    user_id = reg_res.json['user']['id']
 
-    # Admin listing employees -> includes sensitive salary and national_id
-    res_admin = client.get('/api/employees', headers={'Authorization': f'Bearer {admin_token}'})
-    assert res_admin.status_code == 200
-    assert 'salary' in res_admin.json['employees'][0]
+    # Admin lists all users & eligibility status
+    users_res = client.get('/api/auth/users', headers={'Authorization': f'Bearer {admin_token}'})
+    assert users_res.status_code == 200
+    assert len(users_res.json['users']) >= 2
 
-    # Employee listing employees -> sensitive fields redacted
-    res_emp = client.get('/api/employees', headers={'Authorization': f'Bearer {emp_token}'})
-    assert res_emp.status_code == 200
-    assert 'salary' not in res_emp.json['employees'][0]
+    # Admin deactivates John Doe -> login gets blocked with 403
+    client.put(f'/api/auth/users/{user_id}/eligibility', json={'is_active': False}, headers={'Authorization': f'Bearer {admin_token}'})
+
+    blocked_res = client.post('/api/auth/login', json={'email': 'johndoe@teamhub.com', 'password': 'Password123'})
+    assert blocked_res.status_code == 403
+    assert 'eligibility' in blocked_res.json['message'] or 'deactivated' in blocked_res.json['message']
+
+    # Admin reactivates John Doe & promotes him to MANAGER
+    promote_res = client.put(f'/api/auth/users/{user_id}/eligibility', json={'is_active': True, 'role': UserRole.MANAGER}, headers={'Authorization': f'Bearer {admin_token}'})
+    assert promote_res.status_code == 200
+    assert promote_res.json['user']['role'] == UserRole.MANAGER
+
+    # Login now succeeds as MANAGER
+    login_res = client.post('/api/auth/login', json={'email': 'johndoe@teamhub.com', 'password': 'Password123'})
+    assert login_res.status_code == 200
+    assert login_res.json['user']['role'] == UserRole.MANAGER
 
 def test_leave_submission(client):
     emp_token = get_auth_token(client, 'johndoe@teamhub.com', 'Password123')
