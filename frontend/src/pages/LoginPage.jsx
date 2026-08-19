@@ -305,9 +305,9 @@ const LoginPage = () => {
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'end' }}>
               <div className="form-group">
-                <label className="form-label">Password * (Min 6, 1 Letter & 1 Number)</label>
+                <label className="form-label">Password <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(min 6, letter + number)</span></label>
                 <input
                   type="password"
                   className="form-control"
@@ -319,13 +319,13 @@ const LoginPage = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Confirm Password *</label>
+                <label className="form-label">Confirm Password</label>
                 <input
                   type="password"
                   className="form-control"
                   value={regConfirmPassword}
                   onChange={(e) => setRegConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
+                  placeholder="Repeat password"
                   required
                 />
               </div>
