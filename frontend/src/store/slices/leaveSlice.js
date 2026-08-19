@@ -62,6 +62,42 @@ export const updateLeaveStatus = createAsyncThunk(
   }
 );
 
+export const createLeaveType = createAsyncThunk(
+  'leaves/createLeaveType',
+  async (typeData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/leaves/types', typeData);
+      return response.data.leave_type;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to create leave type');
+    }
+  }
+);
+
+export const updateLeaveType = createAsyncThunk(
+  'leaves/updateLeaveType',
+  async ({ id, ...typeData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/leaves/types/${id}`, typeData);
+      return response.data.leave_type;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update leave type');
+    }
+  }
+);
+
+export const deleteLeaveType = createAsyncThunk(
+  'leaves/deleteLeaveType',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/leaves/types/${id}`);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete leave type');
+    }
+  }
+);
+
 const leaveSlice = createSlice({
   name: 'leaves',
   initialState: {
@@ -108,9 +144,22 @@ const leaveSlice = createSlice({
         if (index !== -1) {
           state.requests[index] = action.payload;
         }
+      })
+      .addCase(createLeaveType.fulfilled, (state, action) => {
+        state.types.push(action.payload);
+      })
+      .addCase(updateLeaveType.fulfilled, (state, action) => {
+        const index = state.types.findIndex((t) => t.id === action.payload.id);
+        if (index !== -1) {
+          state.types[index] = action.payload;
+        }
+      })
+      .addCase(deleteLeaveType.fulfilled, (state, action) => {
+        state.types = state.types.filter((t) => t.id !== action.payload);
       });
   },
 });
 
 export const { setStatusFilter, clearLeaveError } = leaveSlice.actions;
 export default leaveSlice.reducer;
+
