@@ -40,6 +40,7 @@ const EmployeesPage = () => {
 
   const role = user?.role || 'EMPLOYEE';
   const isAdminOrHR = ['ADMIN', 'HR_STAFF'].includes(role);
+  const currentEmpId = user?.employee?.id;
 
   return (
     <div className="page-container">
@@ -175,13 +176,19 @@ const EmployeesPage = () => {
                     )}
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                          className="btn btn-sm btn-secondary"
-                          onClick={() => dispatch(openModal({ type: 'employee', data: emp }))}
-                          title="Edit Profile"
-                        >
-                          <Edit size={14} /> Edit
-                        </button>
+                        {/* Employees can only edit their own row; Admins & HR can edit anyone */}
+                        {(isAdminOrHR || currentEmpId === emp.id) && (
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => dispatch(openModal({
+                              type: 'employee',
+                              data: { ...emp, isSelfEdit: !isAdminOrHR }
+                            }))}
+                            title={isAdminOrHR ? 'Edit Profile' : 'Edit My Profile'}
+                          >
+                            <Edit size={14} /> {isAdminOrHR ? 'Edit' : 'My Profile'}
+                          </button>
+                        )}
                         {isAdminOrHR && (
                           <button
                             className="btn btn-sm btn-danger"

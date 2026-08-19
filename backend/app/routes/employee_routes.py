@@ -174,12 +174,18 @@ def update_employee(emp_id):
     is_admin_or_hr = current_u.role in [UserRole.ADMIN, UserRole.HR_STAFF]
     is_self = current_emp and current_emp.id == emp.id
 
+    # ── Access Gate ─────────────────────────────────────────────────────────
+    # EMPLOYEE role: can ONLY edit their own profile. Period.
+    # Admin / HR Staff: can edit any profile.
     if not is_admin_or_hr and not is_self:
-        return jsonify({'success': False, 'message': 'You do not have permission to update this profile'}), 403
+        return jsonify({
+            'success': False,
+            'message': 'Access Denied: You can only edit your own profile'
+        }), 403
 
     data = request.get_json() or {}
 
-    # Self-service fields (allowed for self or Admin/HR)
+    # ── Self-Service Fields (allowed for any authenticated user editing themselves)
     if 'phone' in data:
         emp.phone = data['phone']
     if 'address' in data:
@@ -189,7 +195,8 @@ def update_employee(emp_id):
     if 'emergency_contact_phone' in data:
         emp.emergency_contact_phone = data['emergency_contact_phone']
 
-    # Admin/HR only fields
+    # ── Privileged HR / Admin-Only Fields ───────────────────────────────────
+    # These are COMPLETELY IGNORED for self-edits by non-admin/HR employees.
     if is_admin_or_hr:
         if 'first_name' in data and data['first_name']:
             emp.first_name = data['first_name'].strip()
@@ -210,17 +217,27 @@ def update_employee(emp_id):
         if 'national_id' in data:
             emp.national_id = data['national_id']
 
-        if 'role' in data and current_u.role == UserRole.ADMIN:
-            emp.user.role = data['role']
+        # Only Admins can change another person's system role.
+        # Admin CANNOT escalate their own role (prevents self-promotion attacks).
+        if 'role' in data and current_u.role == UserRole.ADMIN and not is_self:
+            new_role = data['role']
+            if new_role in [UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.HR_STAFF, UserRole.ADMIN]:
+                emp.user.role = new_role
 
     db.session.commit()
 
-    log_audit('UPDATE_EMPLOYEE', 'Employee', target_id=emp.id, details=f"Updated employee info for {emp.first_name} {emp.last_name}", user_id=current_u.id)
+    log_audit(
+        'UPDATE_EMPLOYEE',
+        'Employee',
+        target_id=emp.id,
+        details=f"{'Self-service' if is_self else 'Admin'} profile update for {emp.first_name} {emp.last_name}",
+        user_id=current_u.id
+    )
 
     show_sensitive = can_view_sensitive_info(current_u) or is_self
     return jsonify({
         'success': True,
-        'message': 'Employee profile updated successfully',
+        'message': 'Profile updated successfully',
         'employee': emp.to_dict(include_sensitive=show_sensitive)
     })
 
