@@ -9,8 +9,8 @@ from app.utils.audit import log_audit
 def seed_database():
     db.create_all()
 
-    # Check if already seeded
-    if User.query.first():
+    # Check if admin user exists
+    if User.query.filter_by(email="admin@teamhub.com").first():
         return
 
     print("Initializing Team Hub database structure...")
