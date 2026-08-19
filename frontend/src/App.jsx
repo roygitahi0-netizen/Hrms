@@ -12,6 +12,8 @@ import DepartmentModal from './components/departments/DepartmentModal';
 
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import EmployeesPage from './pages/EmployeesPage';
 import DepartmentsPage from './pages/DepartmentsPage';
@@ -42,10 +44,13 @@ const App = () => {
         {/* Public Landing Page */}
         <Route path="/" element={<LandingPage />} />
 
-        {/* Public Auth Route (Login & Registration Tabbed) */}
+        {/* Public Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected Authenticated Routes */}
+
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />

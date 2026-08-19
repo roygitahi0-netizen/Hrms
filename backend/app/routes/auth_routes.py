@@ -6,8 +6,8 @@ from app.models.employee import Employee, EmploymentStatus
 from app.models.department import Department
 from app.models.leave import LeaveType, LeaveBalance
 from app.models.audit_log import AuditLog
-from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema, UserEligibilityUpdateSchema
-from app.utils.rbac import generate_token, token_required, role_required, can_view_sensitive_info
+from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema, UserEligibilityUpdateSchema, ForgotPasswordSchema, ResetPasswordSchema
+from app.utils.rbac import generate_token, generate_reset_token, decode_reset_token, token_required, role_required, can_view_sensitive_info
 from app.utils.audit import log_audit
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -15,6 +15,9 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 registration_schema = UserRegistrationSchema()
 login_schema = UserLoginSchema()
 eligibility_schema = UserEligibilityUpdateSchema()
+forgot_password_schema = ForgotPasswordSchema()
+reset_password_schema = ResetPasswordSchema()
+
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -246,3 +249,68 @@ def update_user_eligibility(user_id):
             'employee': emp.to_dict(include_sensitive=False) if emp else None
         }
     })
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json() or {}
+    try:
+        validated_data = forgot_password_schema.load(data)
+    except ValidationError as err:
+        return jsonify({'success': False, 'message': 'Invalid email address format', 'errors': err.messages}), 400
+
+    email = validated_data['email'].strip().lower()
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        # Standard security practice: return success even if user not found to prevent user enumeration
+        return jsonify({
+            'success': True,
+            'message': 'If an account with that email exists, a password reset link has been dispatched.'
+        })
+
+    token = generate_reset_token(user)
+    origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+    reset_link = f"{origin}/reset-password?token={token}"
+
+    log_audit('PASSWORD_RESET_REQUESTED', 'User', target_id=user.id, details=f"Password reset link requested for {email}")
+
+    return jsonify({
+        'success': True,
+        'message': f'Password reset link generated for {email}.',
+        'reset_link': reset_link,
+        'token': token
+    })
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json() or {}
+    try:
+        validated_data = reset_password_schema.load(data)
+    except ValidationError as err:
+        messages = []
+        for field, err_list in err.messages.items():
+            messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
+        first_msg = messages[0] if messages else "Validation failed"
+        return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
+
+    token = validated_data['token']
+    new_password = validated_data['password']
+
+    payload = decode_reset_token(token)
+    if not payload:
+        return jsonify({'success': False, 'message': 'Invalid or expired password reset link. Please request a new link.'}), 400
+
+    user = User.query.get(payload['user_id'])
+    if not user:
+        return jsonify({'success': False, 'message': 'User account not found'}), 404
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    log_audit('PASSWORD_RESET_SUCCESS', 'User', target_id=user.id, details=f"Password successfully reset for {user.email}", user_id=user.id)
+
+    return jsonify({
+        'success': True,
+        'message': 'Your password has been reset successfully. You can now log in with your new password.'
+    })
+

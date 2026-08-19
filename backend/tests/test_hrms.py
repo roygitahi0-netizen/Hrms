@@ -8,6 +8,14 @@ from app.utils.seed import seed_database
 
 TEST_DB_PATH = os.path.join(os.path.dirname(__file__), 'test_teamhub_temp.db')
 
+class TestConfig:
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = f'sqlite:///{TEST_DB_PATH}'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = 'test-secret-key'
+    JWT_SECRET_KEY = 'test-jwt-secret-key'
+    JWT_ACCESS_TOKEN_EXPIRES = 86400
+
 @pytest.fixture(scope='session')
 def app():
     if os.path.exists(TEST_DB_PATH):
@@ -16,14 +24,7 @@ def app():
         except Exception:
             pass
 
-    app = create_app()
-    app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{TEST_DB_PATH}'
-
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-        seed_database()
+    app = create_app(TestConfig)
 
     yield app
 
@@ -132,3 +133,24 @@ def test_attendance_clock_in_out(client):
     out_res = client.post('/api/attendance/clock-out', headers={'Authorization': f'Bearer {emp_token}'})
     assert out_res.status_code == 200, f"Clock-out failed: {out_res.json}"
     assert out_res.json['attendance']['clock_out'] is not None
+
+def test_forgot_and_reset_password(client):
+    # Request reset link
+    forgot_res = client.post('/api/auth/forgot-password', json={'email': 'admin@teamhub.com'})
+    assert forgot_res.status_code == 200
+    assert 'token' in forgot_res.json
+    token = forgot_res.json['token']
+
+    # Reset password
+    reset_res = client.post('/api/auth/reset-password', json={'token': token, 'password': 'NewPassword123'})
+    assert reset_res.status_code == 200
+    assert reset_res.json['success'] is True
+
+    # Test login with new password
+    login_res = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'NewPassword123'})
+    assert login_res.status_code == 200
+
+    # Reset back to original password for other tests
+    token2 = client.post('/api/auth/forgot-password', json={'email': 'admin@teamhub.com'}).json['token']
+    client.post('/api/auth/reset-password', json={'token': token2, 'password': 'admin123'})
+

@@ -47,3 +47,24 @@ class UserEligibilityUpdateSchema(Schema):
     )
     department_id = fields.Int(required=False, allow_none=True)
     is_active = fields.Bool(required=False)
+
+class ForgotPasswordSchema(Schema):
+    email = fields.Email(
+        required=True,
+        error_messages={"required": "Email address is required.", "invalid": "Invalid email address format."}
+    )
+
+class ResetPasswordSchema(Schema):
+    token = fields.Str(
+        required=True,
+        error_messages={"required": "Reset token is required."}
+    )
+    password = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=6, error="Password must be at least 6 characters long."),
+            validate.Regexp(r'^(?=.*[A-Za-z])(?=.*\d).*$', error="Password must contain at least one letter and one number.")
+        ],
+        error_messages={"required": "Password is required."}
+    )
+

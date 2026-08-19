@@ -223,7 +223,16 @@ const LoginPage = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Password *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>Password *</label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input
                   type="password"

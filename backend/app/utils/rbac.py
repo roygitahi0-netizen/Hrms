@@ -21,6 +21,25 @@ def decode_token(token):
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
+def generate_reset_token(user):
+    payload = {
+        'user_id': user.id,
+        'email': user.email,
+        'type': 'password_reset',
+        'exp': datetime.now(timezone.utc) + timedelta(minutes=15)
+    }
+    return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
+
+def decode_reset_token(token):
+    try:
+        payload = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        if payload.get('type') != 'password_reset':
+            return None
+        return payload
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
