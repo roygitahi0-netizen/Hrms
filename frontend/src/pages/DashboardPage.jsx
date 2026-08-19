@@ -100,12 +100,16 @@ const DashboardPage = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-primary" onClick={() => dispatch(openModal({ type: 'leave' }))}>
-            <PlusCircle size={18} /> Request Time Off
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => dispatch(openModal({ type: 'leave' }))}
+            style={{ padding: '0.75rem 1.25rem', fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 242, 254, 0.25)' }}
+          >
+            <Calendar size={18} /> Request Time Off
           </button>
           {['ADMIN', 'HR_STAFF'].includes(role) && (
-            <button className="btn btn-secondary" onClick={() => dispatch(openModal({ type: 'employee' }))}>
+            <button className="btn btn-secondary" onClick={() => dispatch(openModal({ type: 'employee' }))} style={{ padding: '0.75rem 1.25rem', fontSize: '0.9rem' }}>
               <Users size={18} /> Onboard Employee
             </button>
           )}
