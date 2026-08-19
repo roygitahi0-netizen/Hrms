@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchLeaveRequests, fetchLeaveBalances, updateLeaveStatus, setStatusFilter } from '../store/slices/leaveSlice';
+import { fetchLeaveRequests, fetchLeaveBalances, fetchLeaveTypes, updateLeaveStatus, setStatusFilter } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import LeaveCategoryWidget from '../components/leaves/LeaveCategoryWidget';
 import { Calendar, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -11,6 +11,7 @@ const LeavesPage = () => {
   const { requests, balances, loading, statusFilter } = useSelector((state) => state.leaves);
 
   useEffect(() => {
+    dispatch(fetchLeaveTypes());
     dispatch(fetchLeaveBalances());
     dispatch(fetchLeaveRequests());
   }, [dispatch]);
@@ -67,6 +68,8 @@ const LeavesPage = () => {
             </div>
           </div>
         ))}
+      </div>
+
       {/* Organization Leave Category Policy Management Widget for Admins & HR */}
       <LeaveCategoryWidget />
 

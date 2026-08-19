@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../services/api';
 import { fetchTodayStatus, clockIn, clockOut } from '../store/slices/attendanceSlice';
-import { fetchLeaveBalances, fetchLeaveRequests, updateLeaveStatus } from '../store/slices/leaveSlice';
+import { fetchLeaveBalances, fetchLeaveRequests, fetchLeaveTypes, updateLeaveStatus } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import StatCard from '../components/common/StatCard';
 import UserAccessWidget from '../components/admin/UserAccessWidget';
@@ -38,6 +38,7 @@ const DashboardPage = () => {
       const res = await api.get('/reports/dashboard');
       setStats(res.data.stats);
       dispatch(fetchTodayStatus());
+      dispatch(fetchLeaveTypes());
       dispatch(fetchLeaveBalances());
       dispatch(fetchLeaveRequests({ status: 'PENDING' }));
     } catch (err) {
