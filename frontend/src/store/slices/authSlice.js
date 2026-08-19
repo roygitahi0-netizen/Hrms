@@ -16,6 +16,9 @@ export const loginUser = createAsyncThunk(
       localStorage.setItem('hrms_user', JSON.stringify(user));
       return { token, user };
     } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network Error: Unable to connect to backend server. Please verify VITE_API_URL environment variable on Vercel.');
+      }
       return rejectWithValue(
         error.response?.data?.message || 'Login failed. Please check your credentials.'
       );
@@ -33,6 +36,9 @@ export const registerUser = createAsyncThunk(
       localStorage.setItem('hrms_user', JSON.stringify(user));
       return { token, user };
     } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network Error: Unable to connect to backend server. Please verify VITE_API_URL environment variable on Vercel.');
+      }
       return rejectWithValue(
         error.response?.data?.message || 'Registration failed. Please check your details.'
       );
