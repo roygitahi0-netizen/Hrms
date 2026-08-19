@@ -8,7 +8,6 @@ from app.utils.audit import log_audit
 department_bp = Blueprint('departments', __name__, url_prefix='/api/departments')
 
 @department_bp.route('', methods=['GET'])
-@token_required
 def list_departments():
     depts = Department.query.order_by(Department.name.asc()).all()
     return jsonify({
