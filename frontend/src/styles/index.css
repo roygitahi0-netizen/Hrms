@@ -410,6 +410,38 @@ body {
   background: rgba(255, 255, 255, 0.07);
 }
 
+/* ── Select dropdown option visibility ──────────────────────────────────── */
+select.form-control {
+  cursor: pointer;
+  /* Custom arrow — replaces the default OS arrow with a styled one */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2367e8f9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+select.form-control option {
+  background-color: #1a1d2e;      /* dark surface so text is always readable  */
+  color: #e2e8f0;                 /* near-white text                           */
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+}
+
+select.form-control option:hover,
+select.form-control option:focus {
+  background-color: #252840;
+  color: #67e8f9;                 /* cyan accent on hover                      */
+}
+
+select.form-control option:checked {
+  background-color: #2d3155;
+  color: #67e8f9;                 /* cyan for the currently selected item      */
+  font-weight: 600;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
