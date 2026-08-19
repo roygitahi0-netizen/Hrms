@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify, g
 from app.extensions import db
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.models.employee import Employee
 from app.models.leave import LeaveType, LeaveBalance, LeaveRequest, LeaveStatus
 from app.models.notification import Notification
@@ -103,8 +103,17 @@ def submit_leave_request():
     if not leave_type_id or not start_date_str or not end_date_str or not reason:
         return jsonify({'success': False, 'message': 'Leave type, start date, end date, and reason are required'}), 400
 
-    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    # 1. Validate Leave Category exists
+    leave_type = LeaveType.query.get(leave_type_id)
+    if not leave_type:
+        return jsonify({'success': False, 'message': 'Selected leave category does not exist'}), 400
+
+    # 2. Robust Date Parsing & Validation
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Invalid date format. Dates must be formatted as YYYY-MM-DD'}), 400
 
     if start_date > end_date:
         return jsonify({'success': False, 'message': 'Start date cannot be after end date'}), 400
@@ -112,12 +121,12 @@ def submit_leave_request():
     requested_days = (end_date - start_date).days + 1
     current_year = start_date.year
 
-    # Check leave balance
+    # 3. Check leave balance allocation
     balance = LeaveBalance.query.filter_by(employee_id=current_emp.id, leave_type_id=leave_type_id, year=current_year).first()
     if balance and balance.remaining_days < requested_days:
         return jsonify({
             'success': False,
-            'message': f'Insufficient leave balance. You have {balance.remaining_days} days remaining for this leave type, but requested {requested_days} days.'
+            'message': f'Insufficient leave balance. You have {balance.remaining_days} days remaining for {leave_type.name}, but requested {requested_days} days.'
         }), 400
 
     req = LeaveRequest(
@@ -132,22 +141,37 @@ def submit_leave_request():
     db.session.add(req)
     db.session.commit()
 
-    # Notify Manager or HR
+    # 4. Notify Manager or HR / Admins
+    notified = False
     if current_emp.manager and current_emp.manager.user:
         n = Notification(
             user_id=current_emp.manager.user.id,
             title="New Leave Request",
-            message=f"{current_emp.first_name} {current_emp.last_name} submitted a {requested_days}-day leave request.",
+            message=f"{current_emp.first_name} {current_emp.last_name} submitted a {requested_days}-day {leave_type.name} request.",
             type="warning"
         )
         db.session.add(n)
-        db.session.commit()
+        notified = True
 
-    log_audit('SUBMIT_LEAVE_REQUEST', 'LeaveRequest', target_id=req.id, details=f"Submitted {requested_days}-day leave request ({start_date_str} to {end_date_str})", user_id=current_u.id)
+    if not notified:
+        # Fallback: Notify Admins if no manager assigned
+        admins = User.query.filter_by(role=UserRole.ADMIN, is_active=True).all()
+        for admin_u in admins:
+            n = Notification(
+                user_id=admin_u.id,
+                title="New Leave Request",
+                message=f"{current_emp.first_name} {current_emp.last_name} submitted a {requested_days}-day {leave_type.name} request.",
+                type="warning"
+            )
+            db.session.add(n)
+
+    db.session.commit()
+
+    log_audit('SUBMIT_LEAVE_REQUEST', 'LeaveRequest', target_id=req.id, details=f"Submitted {requested_days}-day {leave_type.name} ({start_date_str} to {end_date_str})", user_id=current_u.id)
 
     return jsonify({
         'success': True,
-        'message': 'Leave request submitted successfully',
+        'message': 'Leave request submitted successfully for approval',
         'leave_request': req.to_dict()
     }), 201
 
@@ -165,6 +189,10 @@ def update_leave_status(req_id):
 
     if new_status not in [LeaveStatus.APPROVED, LeaveStatus.REJECTED]:
         return jsonify({'success': False, 'message': 'Status must be APPROVED or REJECTED'}), 400
+
+    # Self-Approval Prevention Security Rule
+    if current_emp and leave_req.employee_id == current_emp.id and current_u.role != UserRole.ADMIN:
+        return jsonify({'success': False, 'message': 'Security Policy: You cannot approve or reject your own leave request.'}), 403
 
     # Verification for Manager role (must be direct report or department member)
     if current_u.role == UserRole.MANAGER and current_emp:

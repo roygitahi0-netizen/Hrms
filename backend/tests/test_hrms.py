@@ -10,7 +10,7 @@ TEST_DB_PATH = os.path.join(os.path.dirname(__file__), 'test_teamhub_temp.db')
 
 class TestConfig:
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = f'sqlite:///{TEST_DB_PATH}'
+    SQLALCHEMY_DATABASE_URI = 'sqlite://'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = 'test-secret-key'
     JWT_SECRET_KEY = 'test-jwt-secret-key'
@@ -153,4 +153,35 @@ def test_forgot_and_reset_password(client):
     # Reset back to original password for other tests
     token2 = client.post('/api/auth/forgot-password', json={'email': 'admin@teamhub.com'}).json['token']
     client.post('/api/auth/reset-password', json={'token': token2, 'password': 'admin123'})
+
+def test_leave_validation_and_security(client):
+    # Login as admin
+    admin_res = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    token = admin_res.json['token']
+
+    # 1. Missing required fields
+    invalid_res = client.post('/api/leaves', json={'reason': ''}, headers={'Authorization': f'Bearer {token}'})
+    assert invalid_res.status_code == 400
+    assert 'required' in invalid_res.json['message'].lower()
+
+    # 2. Invalid date format
+    bad_date_res = client.post('/api/leaves', json={
+        'leave_type_id': 1,
+        'start_date': 'invalid-date',
+        'end_date': '2026-08-20',
+        'reason': 'Vacation'
+    }, headers={'Authorization': f'Bearer {token}'})
+    assert bad_date_res.status_code == 400
+    assert 'invalid date' in bad_date_res.json['message'].lower()
+
+    # 3. Invalid Leave Category ID
+    bad_cat_res = client.post('/api/leaves', json={
+        'leave_type_id': 99999,
+        'start_date': '2026-08-20',
+        'end_date': '2026-08-21',
+        'reason': 'Vacation'
+    }, headers={'Authorization': f'Bearer {token}'})
+    assert bad_cat_res.status_code == 400
+    assert 'does not exist' in bad_cat_res.json['message'].lower()
+
 
