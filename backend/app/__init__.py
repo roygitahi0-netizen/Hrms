@@ -11,6 +11,14 @@ def create_app(config_class=Config):
     db.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+    with app.app_context():
+        try:
+            from app.utils.seed import seed_database
+            db.create_all()
+            seed_database()
+        except Exception as e:
+            app.logger.error(f"Error during auto-seeding: {e}")
+
     # Register blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.employee_routes import employee_bp
