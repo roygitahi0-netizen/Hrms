@@ -1,8 +1,12 @@
 import os
 
 db_url = os.environ.get('DATABASE_URL')
-if db_url and db_url.startswith('postgres://'):
-    db_url = db_url.replace('postgres://', 'postgresql://', 1)
+if db_url:
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    if 'sslmode' not in db_url and 'postgresql://' in db_url:
+        separator = '&' if '?' in db_url else '?'
+        db_url = f"{db_url}{separator}sslmode=require"
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'hrms-super-secret-key-2026-production-grade')
