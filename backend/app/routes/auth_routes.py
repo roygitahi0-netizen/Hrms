@@ -256,53 +256,71 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def send_reset_email(to_email, reset_link):
-    smtp_server = os.environ.get('SMTP_SERVER') or os.environ.get('MAIL_SERVER')
-    smtp_port = int(os.environ.get('SMTP_PORT') or os.environ.get('MAIL_PORT') or 587)
-    smtp_user = os.environ.get('SMTP_USERNAME') or os.environ.get('MAIL_USERNAME')
-    smtp_pass = os.environ.get('SMTP_PASSWORD') or os.environ.get('MAIL_PASSWORD')
-    sender_email = os.environ.get('SMTP_SENDER') or smtp_user or 'noreply@teamhub.com'
+    smtp_server = (os.environ.get('SMTP_SERVER') or os.environ.get('MAIL_SERVER') or '').strip()
+    smtp_port_str = os.environ.get('SMTP_PORT') or os.environ.get('MAIL_PORT') or '587'
+    smtp_user = (os.environ.get('SMTP_USERNAME') or os.environ.get('MAIL_USERNAME') or '').strip()
+    smtp_pass_raw = os.environ.get('SMTP_PASSWORD') or os.environ.get('MAIL_PASSWORD') or ''
+    # Automatically strip spaces from Google App Password (e.g. 'abcd efgh ijkl mnop' -> 'abcdefghijklmnop')
+    smtp_pass = smtp_pass_raw.replace(' ', '').strip()
+    sender_email = (os.environ.get('SMTP_SENDER') or smtp_user or 'noreply@teamhub.com').strip()
 
     if not smtp_server or not smtp_user or not smtp_pass:
-        print(f"[Email Dispatcher] SMTP credentials not set. Simulated email to {to_email}: {reset_link}")
-        return False
+        msg = "SMTP credentials not set on Render environment variables."
+        print(f"[Email Dispatcher Warning] {msg}")
+        return False, msg
+
+    try:
+        smtp_port = int(smtp_port_str)
+    except ValueError:
+        smtp_port = 587
 
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "Team Hub — Password Reset Link"
-        msg['From'] = sender_email
+        msg['From'] = f"Team Hub <{sender_email}>"
         msg['To'] = to_email
 
         html_body = f"""
         <html>
-          <body style="font-family: Arial, sans-serif; background-color: #060913; color: #f8fafc; padding: 20px;">
-            <div style="max-width: 500px; margin: 0 auto; background: #0c1222; padding: 30px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-              <h2 style="color: #00f2fe; margin-top: 0;">Team Hub Password Reset</h2>
-              <p>Hello,</p>
-              <p>We received a request to reset the password for your Team Hub account (<strong>{to_email}</strong>).</p>
-              <p style="margin: 25px 0;">
-                <a href="{reset_link}" style="background: linear-gradient(135deg, #6366f1 0%, #00f2fe 100%); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
-                  Reset My Password
+          <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #060913; color: #f8fafc; padding: 20px;">
+            <div style="max-width: 520px; margin: 0 auto; background: #0c1222; padding: 32px; border-radius: 16px; border: 1px solid rgba(0, 242, 254, 0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; background: linear-gradient(135deg, #6366f1, #00f2fe); border-radius: 12px; font-weight: 800; font-size: 20px; color: #000;">TH</div>
+                <h2 style="color: #ffffff; margin-top: 12px; font-size: 22px; letter-spacing: -0.5px;">Password Reset Request</h2>
+              </div>
+              <p style="font-size: 15px; color: #cbd5e1; line-height: 1.5;">Hello,</p>
+              <p style="font-size: 15px; color: #cbd5e1; line-height: 1.5;">We received a request to reset the password for your Team Hub account associated with <strong>{to_email}</strong>.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_link}" style="background: linear-gradient(135deg, #6366f1 0%, #00f2fe 100%); color: #000000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 4px 15px rgba(0,242,254,0.3);">
+                  Reset Password Now &rarr;
                 </a>
-              </p>
-              <p style="font-size: 0.85em; color: #94a3b8;">If you did not request this change, you can safely ignore this email.</p>
-              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;" />
-              <p style="font-size: 0.75em; color: #64748b;">Link URL: {reset_link}</p>
+              </div>
+              <p style="font-size: 13px; color: #94a3b8; line-height: 1.4;">If you did not request this password reset, please ignore this email or contact support if you have concerns.</p>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 24px 0;" />
+              <p style="font-size: 12px; color: #64748b; word-break: break-all;">Direct Link: {reset_link}</p>
             </div>
           </body>
         </html>
         """
         msg.attach(MIMEText(html_body, 'html'))
 
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(sender_email, to_email, msg.as_string())
+        # Use SSL for port 465, or TLS for port 587/25
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=15) as server:
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(sender_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(sender_email, to_email, msg.as_string())
         
-        print(f"[Email Dispatcher] Successfully sent password reset email to {to_email}")
-        return True
+        print(f"[Email Dispatcher Success] Sent password reset email to {to_email}")
+        return True, "Email sent successfully"
     except Exception as ex:
-        print(f"[Email Dispatcher Error] Failed to send email to {to_email}: {ex}")
-        return False
+        err_msg = str(ex)
+        print(f"[Email Dispatcher Error] Failed sending to {to_email}: {err_msg}")
+        return False, err_msg
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
@@ -328,16 +346,20 @@ def forgot_password():
 
     log_audit('PASSWORD_RESET_REQUESTED', 'User', target_id=user.id, details=f"Password reset link requested for {email}")
 
-    # Dispatch real email if SMTP is configured
-    email_sent = send_reset_email(email, reset_link)
+    # Dispatch real email via SMTP
+    email_sent, error_reason = send_reset_email(email, reset_link)
 
-    msg = f"Password reset email sent to {email}." if email_sent else f"Password reset link generated for {email}."
+    if email_sent:
+        msg = f"Password reset email sent to {email}. Please check your inbox and spam folder."
+    else:
+        msg = f"Password reset link generated for {email}. (Email dispatch note: {error_reason})"
 
     return jsonify({
         'success': True,
         'message': msg,
         'reset_link': reset_link,
-        'token': token
+        'token': token,
+        'email_sent': email_sent
     })
 
 @auth_bp.route('/reset-password', methods=['POST'])
