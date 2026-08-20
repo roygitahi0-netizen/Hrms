@@ -13,7 +13,16 @@ def create_app(config_class=Config):
 
     with app.app_context():
         try:
+            # Explicitly import models so SQLAlchemy metadata registers all tables
+            from app.models.user import User
+            from app.models.employee import Employee
+            from app.models.department import Department, JobPosition
+            from app.models.leave import LeaveType, LeaveBalance, LeaveRequest
+            from app.models.attendance import AttendanceRecord
+            from app.models.notification import Notification
+            from app.models.audit_log import AuditLog
             from app.utils.seed import seed_database
+
             db.create_all()
             seed_database()
         except Exception as e:
