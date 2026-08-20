@@ -183,5 +183,40 @@ def test_leave_validation_and_security(client):
     }, headers={'Authorization': f'Bearer {token}'})
     assert bad_cat_res.status_code == 400
     assert 'does not exist' in bad_cat_res.json['message'].lower()
+def test_admin_direct_password_reset(client):
+    # 1. Login as Admin
+    admin_login = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    admin_token = admin_login.json['token']
+    headers = {'Authorization': f'Bearer {admin_token}'}
 
+    # 2. Register a new user
+    reg_res = client.post('/api/auth/register', json={
+        'email': 'target_user@teamhub.com',
+        'password': 'OldPass123',
+        'first_name': 'Target',
+        'last_name': 'Employee',
+        'department_id': 1
+    })
+    assert reg_res.status_code == 201
+    user_id = reg_res.json['user']['id']
 
+    # 3. Test invalid password payload (rejected by Marshmallow schema)
+    invalid_reset = client.put(f'/api/auth/users/{user_id}/reset-password', json={
+        'new_password': 'short' # Missing digits and length < 6
+    }, headers=headers)
+    assert invalid_reset.status_code == 400
+
+    # 4. Admin resets target user's password with valid payload
+    valid_reset = client.put(f'/api/auth/users/{user_id}/reset-password', json={
+        'new_password': 'AdminAssigned123'
+    }, headers=headers)
+    assert valid_reset.status_code == 200
+    assert valid_reset.json['success'] is True
+
+    # 5. Verify target user can now log in with the new password
+    user_login = client.post('/api/auth/login', json={
+        'email': 'target_user@teamhub.com',
+        'password': 'AdminAssigned123'
+    })
+    assert user_login.status_code == 200
+    assert user_login.json['success'] is True

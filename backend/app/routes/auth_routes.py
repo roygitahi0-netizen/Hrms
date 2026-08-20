@@ -6,7 +6,7 @@ from app.models.employee import Employee, EmploymentStatus
 from app.models.department import Department
 from app.models.leave import LeaveType, LeaveBalance
 from app.models.audit_log import AuditLog
-from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema, UserEligibilityUpdateSchema, ForgotPasswordSchema, ResetPasswordSchema
+from app.schemas.auth_schemas import UserRegistrationSchema, UserLoginSchema, UserEligibilityUpdateSchema, ForgotPasswordSchema, ResetPasswordSchema, AdminPasswordResetSchema
 from app.utils.rbac import generate_token, generate_reset_token, decode_reset_token, token_required, role_required, can_view_sensitive_info
 from app.utils.audit import log_audit
 
@@ -17,6 +17,7 @@ login_schema = UserLoginSchema()
 eligibility_schema = UserEligibilityUpdateSchema()
 forgot_password_schema = ForgotPasswordSchema()
 reset_password_schema = ResetPasswordSchema()
+admin_password_reset_schema = AdminPasswordResetSchema()
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -248,6 +249,36 @@ def update_user_eligibility(user_id):
             'is_active': target_user.is_active,
             'employee': emp.to_dict(include_sensitive=False) if emp else None
         }
+    })
+
+@auth_bp.route('/users/<int:user_id>/reset-password', methods=['PUT'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+def admin_reset_user_password(user_id):
+    """Admin / HR Staff route to directly assign a new password to any user account."""
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({'success': False, 'message': 'User account not found'}), 404
+
+    data = request.get_json() or {}
+    try:
+        validated_data = admin_password_reset_schema.load(data)
+    except ValidationError as err:
+        messages = []
+        for field, err_list in err.messages.items():
+            messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
+        first_msg = messages[0] if messages else "Validation failed"
+        return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
+
+    new_password = validated_data['new_password']
+    target_user.set_password(new_password)
+    db.session.commit()
+
+    log_audit('ADMIN_RESET_USER_PASSWORD', 'User', target_id=target_user.id, details=f"Admin {g.current_user.email} reset password for {target_user.email}", user_id=g.current_user.id)
+
+    return jsonify({
+        'success': True,
+        'message': f'Successfully updated password for {target_user.email}. User can now log in with the new password.'
     })
 
 import os

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useDispatch } from 'react-redux';
 import { showToast } from '../../store/slices/uiSlice';
-import { ShieldCheck, UserCheck, UserX, Clock, Building2, RefreshCw } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, Clock, Building2, RefreshCw, KeyRound } from 'lucide-react';
 
 const UserAccessWidget = () => {
   const dispatch = useDispatch();
@@ -49,6 +49,27 @@ const UserAccessWidget = () => {
       fetchUserEligibilityList();
     } catch (err) {
       dispatch(showToast({ message: 'Failed to update user role.', type: 'error' }));
+    }
+  };
+
+  const handleAdminResetPassword = async (userObj) => {
+    const newPass = window.prompt(
+      `Set a new password for ${userObj.email}:\n(Must be at least 6 characters, with 1 letter & 1 number)`
+    );
+
+    if (!newPass) return; // User cancelled
+
+    try {
+      const res = await api.put(`/auth/users/${userObj.id}/reset-password`, { new_password: newPass });
+      dispatch(showToast({
+        message: res.data.message || `Password for ${userObj.email} reset successfully!`,
+        type: 'success'
+      }));
+    } catch (err) {
+      dispatch(showToast({
+        message: err.response?.data?.message || 'Failed to update user password.',
+        type: 'error'
+      }));
     }
   };
 
@@ -130,21 +151,31 @@ const UserAccessWidget = () => {
                       </div>
                     </td>
                     <td>
-                      <button
-                        className={`btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-primary'}`}
-                        onClick={() => handleToggleEligibility(u)}
-                        style={{ padding: '0.3rem 0.75rem', fontSize: '0.78rem' }}
-                      >
-                        {u.is_active ? (
-                          <>
-                            <UserX size={14} /> Revoke Eligibility
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck size={14} /> Grant Eligibility
-                          </>
-                        )}
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <button
+                          className={`btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-primary'}`}
+                          onClick={() => handleToggleEligibility(u)}
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}
+                        >
+                          {u.is_active ? (
+                            <>
+                              <UserX size={14} /> Revoke Eligibility
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck size={14} /> Grant Eligibility
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleAdminResetPassword(u)}
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem', background: 'rgba(0, 242, 254, 0.1)', borderColor: 'rgba(0, 242, 254, 0.3)', color: 'var(--accent-cyan)' }}
+                        >
+                          <KeyRound size={14} /> Set Password
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

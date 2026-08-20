@@ -68,3 +68,13 @@ class ResetPasswordSchema(Schema):
         error_messages={"required": "Password is required."}
     )
 
+class AdminPasswordResetSchema(Schema):
+    new_password = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=6, error="Password must be at least 6 characters long."),
+            validate.Regexp(r'^(?=.*[A-Za-z])(?=.*\d).*$', error="Password must contain at least one letter and one number.")
+        ],
+        error_messages={"required": "New password is required."}
+    )
+
