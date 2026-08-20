@@ -255,7 +255,19 @@ def update_user_eligibility(user_id):
 @token_required
 @role_required(UserRole.ADMIN, UserRole.HR_STAFF)
 def admin_reset_user_password(user_id):
-    """Admin / HR Staff route to directly assign a new password to any user account."""
+    """Admin / HR Staff route to directly assign a new password to any user account.
+    Restricted to local machine requests (127.0.0.1 / localhost) unless ALLOW_REMOTE_ADMIN_RESET=true.
+    """
+    client_ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or ''
+    allow_remote_reset = os.environ.get('ALLOW_REMOTE_ADMIN_RESET', 'false').lower() == 'true'
+    is_localhost = client_ip in ['127.0.0.1', '::1', 'localhost']
+
+    if not is_localhost and not allow_remote_reset:
+        return jsonify({
+            'success': False,
+            'message': 'Security Restriction: Direct admin password override is restricted to local machine access only.'
+        }), 403
+
     target_user = User.query.get(user_id)
     if not target_user:
         return jsonify({'success': False, 'message': 'User account not found'}), 404

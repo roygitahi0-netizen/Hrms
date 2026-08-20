@@ -200,20 +200,28 @@ def test_admin_direct_password_reset(client):
     assert reg_res.status_code == 201
     user_id = reg_res.json['user']['id']
 
-    # 3. Test invalid password payload (rejected by Marshmallow schema)
+    # 3. Test Remote IP Restriction (Blocked with 403 when request comes from public IP)
+    remote_headers = {'Authorization': f'Bearer {admin_token}', 'X-Forwarded-For': '203.0.113.195'}
+    remote_reset = client.put(f'/api/auth/users/{user_id}/reset-password', json={
+        'new_password': 'AdminAssigned123'
+    }, headers=remote_headers)
+    assert remote_reset.status_code == 403
+    assert 'restricted to local machine' in remote_reset.json['message'].lower()
+
+    # 4. Test invalid password payload on local request (rejected by Marshmallow schema)
     invalid_reset = client.put(f'/api/auth/users/{user_id}/reset-password', json={
         'new_password': 'short' # Missing digits and length < 6
     }, headers=headers)
     assert invalid_reset.status_code == 400
 
-    # 4. Admin resets target user's password with valid payload
+    # 5. Admin resets target user's password from local machine (127.0.0.1) with valid payload
     valid_reset = client.put(f'/api/auth/users/{user_id}/reset-password', json={
         'new_password': 'AdminAssigned123'
     }, headers=headers)
     assert valid_reset.status_code == 200
     assert valid_reset.json['success'] is True
 
-    # 5. Verify target user can now log in with the new password
+    # 6. Verify target user can now log in with the new password
     user_login = client.post('/api/auth/login', json={
         'email': 'target_user@teamhub.com',
         'password': 'AdminAssigned123'
