@@ -324,43 +324,50 @@ def send_reset_email(to_email, reset_link):
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    data = request.get_json() or {}
     try:
-        validated_data = forgot_password_schema.load(data)
-    except ValidationError as err:
-        return jsonify({'success': False, 'message': 'Invalid email address format', 'errors': err.messages}), 400
+        data = request.get_json() or {}
+        try:
+            validated_data = forgot_password_schema.load(data)
+        except ValidationError as err:
+            return jsonify({'success': False, 'message': 'Invalid email address format', 'errors': err.messages}), 400
 
-    email = validated_data['email'].strip().lower()
-    user = User.query.filter_by(email=email).first()
+        email = validated_data['email'].strip().lower()
+        user = User.query.filter_by(email=email).first()
 
-    if not user:
-        # Standard security practice: return success even if user not found to prevent user enumeration
+        if not user:
+            # Standard security practice: return success even if user not found to prevent user enumeration
+            return jsonify({
+                'success': True,
+                'message': 'If an account with that email exists, a password reset link has been dispatched to your inbox.'
+            })
+
+        token = generate_reset_token(user)
+        origin = request.headers.get('Origin') or request.host_url.rstrip('/')
+        reset_link = f"{origin}/reset-password?token={token}"
+
+        try:
+            log_audit('PASSWORD_RESET_REQUESTED', 'User', target_id=user.id, details=f"Password reset link requested for {email}")
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
+
+        # Dispatch real email via SMTP
+        email_sent, error_reason = send_reset_email(email, reset_link)
+
+        if email_sent:
+            msg = f"Password reset email sent to {email}. Please check your inbox and spam folder."
+        else:
+            msg = f"Password reset link generated for {email}. (Note: {error_reason})"
+
         return jsonify({
             'success': True,
-            'message': 'If an account with that email exists, a password reset link has been dispatched to your inbox.'
+            'message': msg,
+            'reset_link': reset_link,
+            'token': token,
+            'email_sent': email_sent
         })
-
-    token = generate_reset_token(user)
-    origin = request.headers.get('Origin') or request.host_url.rstrip('/')
-    reset_link = f"{origin}/reset-password?token={token}"
-
-    log_audit('PASSWORD_RESET_REQUESTED', 'User', target_id=user.id, details=f"Password reset link requested for {email}")
-
-    # Dispatch real email via SMTP
-    email_sent, error_reason = send_reset_email(email, reset_link)
-
-    if email_sent:
-        msg = f"Password reset email sent to {email}. Please check your inbox and spam folder."
-    else:
-        msg = f"Password reset link generated for {email}. (Email dispatch note: {error_reason})"
-
-    return jsonify({
-        'success': True,
-        'message': msg,
-        'reset_link': reset_link,
-        'token': token,
-        'email_sent': email_sent
-    })
+    except Exception as general_err:
+        print(f"[Forgot Password Error] {general_err}")
+        return jsonify({'success': False, 'message': f"Error processing password reset: {str(general_err)}"}), 400
 
 @auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
