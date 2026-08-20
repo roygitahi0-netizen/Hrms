@@ -1,7 +1,8 @@
+import os
 import csv
 from io import StringIO
 from datetime import datetime
-from flask import Blueprint, jsonify, Response, request, g
+from flask import Blueprint, jsonify, Response, request, g, current_app
 from app.extensions import db
 from app.models.user import User, UserRole
 from app.models.department import Department
@@ -9,8 +10,14 @@ from app.models.employee import Employee, EmploymentStatus
 from app.models.leave import LeaveRequest, LeaveStatus
 from app.models.attendance import AttendanceRecord, AttendanceStatus
 from app.utils.rbac import token_required, role_required
+from app.utils.audit import log_audit
 
 report_bp = Blueprint('reports', __name__, url_prefix='/api/reports')
+
+def get_exports_dir():
+    exports_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'exports'))
+    os.makedirs(exports_dir, exist_ok=True)
+    return exports_dir
 
 @report_bp.route('/dashboard', methods=['GET'])
 @token_required
@@ -126,6 +133,24 @@ def export_leave_csv():
         ])
 
     output = si.getvalue()
+
+    # Save to local machine if save_local flag is passed
+    save_local = request.args.get('save_local', 'false').lower() == 'true'
+    local_path = None
+    if save_local:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"hrms_leave_requests_{timestamp}.csv"
+        local_path = os.path.join(get_exports_dir(), filename)
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(output)
+        log_audit('EXPORT_REPORT_LOCAL', 'Report', details=f"Saved leave CSV report to local file: {local_path}")
+        return jsonify({
+            'success': True,
+            'message': 'Report exported and saved to local machine successfully.',
+            'file_path': local_path,
+            'filename': filename
+        })
+
     return Response(
         output,
         mimetype="text/csv",
@@ -157,8 +182,72 @@ def export_attendance_csv():
         ])
 
     output = si.getvalue()
+
+    save_local = request.args.get('save_local', 'false').lower() == 'true'
+    if save_local:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"hrms_attendance_{timestamp}.csv"
+        local_path = os.path.join(get_exports_dir(), filename)
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(output)
+        log_audit('EXPORT_REPORT_LOCAL', 'Report', details=f"Saved attendance CSV report to local file: {local_path}")
+        return jsonify({
+            'success': True,
+            'message': 'Attendance report exported and saved to local machine successfully.',
+            'file_path': local_path,
+            'filename': filename
+        })
+
     return Response(
         output,
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=hrms_attendance_report.csv"}
+    )
+
+@report_bp.route('/export/employee-csv', methods=['GET'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF, UserRole.MANAGER)
+def export_employee_csv():
+    employees = Employee.query.filter_by(is_deleted=False).order_by(Employee.id.asc()).all()
+
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['Employee ID', 'Employee Code', 'First Name', 'Last Name', 'Work Email', 'Phone', 'Department', 'Position', 'Status', 'Role', 'Hire Date'])
+
+    for emp in employees:
+        cw.writerow([
+            emp.id,
+            emp.employee_code,
+            emp.first_name,
+            emp.last_name,
+            emp.email,
+            emp.phone or '',
+            emp.department.name if emp.department else '',
+            emp.position.title if emp.position else '',
+            emp.employment_status,
+            emp.user.role if emp.user else '',
+            emp.hire_date.strftime('%Y-%m-%d') if emp.hire_date else ''
+        ])
+
+    output = si.getvalue()
+
+    save_local = request.args.get('save_local', 'false').lower() == 'true'
+    if save_local:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"hrms_employees_{timestamp}.csv"
+        local_path = os.path.join(get_exports_dir(), filename)
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(output)
+        log_audit('EXPORT_REPORT_LOCAL', 'Report', details=f"Saved employee CSV report to local file: {local_path}")
+        return jsonify({
+            'success': True,
+            'message': 'Employee master roster exported and saved to local machine successfully.',
+            'file_path': local_path,
+            'filename': filename
+        })
+
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=hrms_employees_report.csv"}
     )

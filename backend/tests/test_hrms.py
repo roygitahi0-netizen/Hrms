@@ -220,3 +220,27 @@ def test_admin_direct_password_reset(client):
     })
     assert user_login.status_code == 200
     assert user_login.json['success'] is True
+
+def test_report_exports_and_local_file_saving(client):
+    admin_login = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    admin_token = admin_login.json['token']
+    headers = {'Authorization': f'Bearer {admin_token}'}
+
+    # 1. Standard CSV File Download
+    csv_res = client.get('/api/reports/export/leave-csv', headers=headers)
+    assert csv_res.status_code == 200
+    assert csv_res.mimetype == 'text/csv'
+
+    # 2. Local File Save Trigger (save_local=true)
+    local_res = client.get('/api/reports/export/leave-csv?save_local=true', headers=headers)
+    assert local_res.status_code == 200
+    assert local_res.json['success'] is True
+    assert 'file_path' in local_res.json
+    import os
+    assert os.path.exists(local_res.json['file_path'])
+
+    # 3. Employee CSV export
+    emp_res = client.get('/api/reports/export/employee-csv?save_local=true', headers=headers)
+    assert emp_res.status_code == 200
+    assert emp_res.json['success'] is True
+    assert os.path.exists(emp_res.json['file_path'])
