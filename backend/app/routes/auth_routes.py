@@ -250,6 +250,60 @@ def update_user_eligibility(user_id):
         }
     })
 
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_reset_email(to_email, reset_link):
+    smtp_server = os.environ.get('SMTP_SERVER') or os.environ.get('MAIL_SERVER')
+    smtp_port = int(os.environ.get('SMTP_PORT') or os.environ.get('MAIL_PORT') or 587)
+    smtp_user = os.environ.get('SMTP_USERNAME') or os.environ.get('MAIL_USERNAME')
+    smtp_pass = os.environ.get('SMTP_PASSWORD') or os.environ.get('MAIL_PASSWORD')
+    sender_email = os.environ.get('SMTP_SENDER') or smtp_user or 'noreply@teamhub.com'
+
+    if not smtp_server or not smtp_user or not smtp_pass:
+        print(f"[Email Dispatcher] SMTP credentials not set. Simulated email to {to_email}: {reset_link}")
+        return False
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "Team Hub — Password Reset Link"
+        msg['From'] = sender_email
+        msg['To'] = to_email
+
+        html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; background-color: #060913; color: #f8fafc; padding: 20px;">
+            <div style="max-width: 500px; margin: 0 auto; background: #0c1222; padding: 30px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+              <h2 style="color: #00f2fe; margin-top: 0;">Team Hub Password Reset</h2>
+              <p>Hello,</p>
+              <p>We received a request to reset the password for your Team Hub account (<strong>{to_email}</strong>).</p>
+              <p style="margin: 25px 0;">
+                <a href="{reset_link}" style="background: linear-gradient(135deg, #6366f1 0%, #00f2fe 100%); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                  Reset My Password
+                </a>
+              </p>
+              <p style="font-size: 0.85em; color: #94a3b8;">If you did not request this change, you can safely ignore this email.</p>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;" />
+              <p style="font-size: 0.75em; color: #64748b;">Link URL: {reset_link}</p>
+            </div>
+          </body>
+        </html>
+        """
+        msg.attach(MIMEText(html_body, 'html'))
+
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(sender_email, to_email, msg.as_string())
+        
+        print(f"[Email Dispatcher] Successfully sent password reset email to {to_email}")
+        return True
+    except Exception as ex:
+        print(f"[Email Dispatcher Error] Failed to send email to {to_email}: {ex}")
+        return False
+
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json() or {}
@@ -265,7 +319,7 @@ def forgot_password():
         # Standard security practice: return success even if user not found to prevent user enumeration
         return jsonify({
             'success': True,
-            'message': 'If an account with that email exists, a password reset link has been dispatched.'
+            'message': 'If an account with that email exists, a password reset link has been dispatched to your inbox.'
         })
 
     token = generate_reset_token(user)
@@ -274,9 +328,14 @@ def forgot_password():
 
     log_audit('PASSWORD_RESET_REQUESTED', 'User', target_id=user.id, details=f"Password reset link requested for {email}")
 
+    # Dispatch real email if SMTP is configured
+    email_sent = send_reset_email(email, reset_link)
+
+    msg = f"Password reset email sent to {email}." if email_sent else f"Password reset link generated for {email}."
+
     return jsonify({
         'success': True,
-        'message': f'Password reset link generated for {email}.',
+        'message': msg,
         'reset_link': reset_link,
         'token': token
     })

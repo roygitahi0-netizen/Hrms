@@ -25,7 +25,11 @@ const ForgotPasswordPage = () => {
         setError(res.data.message || 'Unable to process request.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send password reset link. Please check your email.');
+      if (!err.response) {
+        setError('Network Error: Unable to connect to backend server. Please verify backend deployment status.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to process password reset. Please check your email.');
+      }
     } finally {
       setLoading(false);
     }
