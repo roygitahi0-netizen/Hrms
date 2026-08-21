@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchEmployees, deleteEmployee, setSearchTerm, setDepartmentFilter, setStatusFilter } from '../store/slices/employeeSlice';
 import { fetchDepartments, fetchPositions } from '../store/slices/departmentSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
-import { Search, Filter, Plus, Edit, Trash2, Shield, Eye, EyeOff } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, Shield, Eye, EyeOff, FileSpreadsheet } from 'lucide-react';
+import api from '../services/api';
 
 const EmployeesPage = () => {
   const dispatch = useDispatch();
@@ -12,6 +13,7 @@ const EmployeesPage = () => {
   const { departments } = useSelector((state) => state.departments);
 
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     dispatch(fetchDepartments());
@@ -25,6 +27,26 @@ const EmployeesPage = () => {
 
   const handleSearchChange = (e) => {
     dispatch(setSearchTerm(e.target.value));
+  };
+
+  const handleExportEmployeeCSV = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/reports/export/employee-csv', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `hrms_employee_roster_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      dispatch(showToast({ message: 'Employee roster downloaded to your computer!', type: 'success' }));
+    } catch (err) {
+      dispatch(showToast({ message: 'Failed to export Employee roster.', type: 'error' }));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleSoftDelete = async (emp) => {
@@ -54,6 +76,12 @@ const EmployeesPage = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {isAdminOrHR && (
+            <button className="btn btn-secondary" onClick={handleExportEmployeeCSV} disabled={exporting}>
+              <FileSpreadsheet size={18} color="var(--accent-indigo)" />
+              {exporting ? 'Exporting...' : 'Export Employee Roster'}
+            </button>
+          )}
           {isAdminOrHR && (
             <>
               <button

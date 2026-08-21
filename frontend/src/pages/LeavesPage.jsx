@@ -3,12 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchLeaveRequests, fetchLeaveBalances, fetchLeaveTypes, updateLeaveStatus, setStatusFilter } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import LeaveCategoryWidget from '../components/leaves/LeaveCategoryWidget';
-import { Calendar, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar, Plus, CheckCircle, XCircle, Clock, FileSpreadsheet } from 'lucide-react';
+import api from '../services/api';
 
 const LeavesPage = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { requests, balances, loading, statusFilter } = useSelector((state) => state.leaves);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     dispatch(fetchLeaveTypes());
@@ -26,6 +28,26 @@ const LeavesPage = () => {
       dispatch(fetchLeaveBalances());
     } catch (err) {
       dispatch(showToast({ message: err || 'Status update failed', type: 'error' }));
+    }
+  };
+
+  const handleExportLeaveCSV = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/reports/export/leave-csv', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `hrms_leave_report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      dispatch(showToast({ message: 'Leave CSV report downloaded to your computer!', type: 'success' }));
+    } catch (err) {
+      dispatch(showToast({ message: 'Failed to export Leave report.', type: 'error' }));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -48,9 +70,18 @@ const LeavesPage = () => {
           </p>
         </div>
 
-        <button className="btn btn-primary" onClick={() => dispatch(openModal({ type: 'leave' }))}>
-          <Plus size={18} /> Submit Time Off Request
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {canApprove && (
+            <button className="btn btn-secondary" onClick={handleExportLeaveCSV} disabled={exporting}>
+              <FileSpreadsheet size={18} color="var(--accent-emerald)" />
+              {exporting ? 'Exporting...' : 'Export Leave CSV'}
+            </button>
+          )}
+
+          <button className="btn btn-primary" onClick={() => dispatch(openModal({ type: 'leave' }))}>
+            <Plus size={18} /> Submit Time Off Request
+          </button>
+        </div>
       </div>
 
       {/* Leave Balances Grid */}

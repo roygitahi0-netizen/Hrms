@@ -325,26 +325,77 @@ const DashboardPage = () => {
             <div className="glass-card" style={{ padding: '1.5rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>Export Reports</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/export/leave-csv`}
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await api.get('/reports/export/leave-csv', { responseType: 'blob' });
+                      const url = window.URL.createObjectURL(new Blob([res.data]));
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `hrms_leave_report_${new Date().toISOString().slice(0,10)}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                      window.URL.revokeObjectURL(url);
+                      dispatch(showToast({ message: 'Leave report downloaded to your computer!', type: 'success' }));
+                    } catch (err) {
+                      dispatch(showToast({ message: 'Failed to export Leave report.', type: 'error' }));
+                    }
+                  }}
                   className="btn btn-secondary"
-                  target="_blank"
-                  rel="noreferrer"
                   style={{ width: '100%', justifyContent: 'flex-start' }}
                 >
                   <FileSpreadsheet size={18} color="var(--accent-emerald)" />
                   Export Leave Log CSV
-                </a>
-                <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/export/attendance-csv`}
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await api.get('/reports/export/attendance-csv', { responseType: 'blob' });
+                      const url = window.URL.createObjectURL(new Blob([res.data]));
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `hrms_attendance_report_${new Date().toISOString().slice(0,10)}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                      window.URL.revokeObjectURL(url);
+                      dispatch(showToast({ message: 'Attendance report downloaded to your computer!', type: 'success' }));
+                    } catch (err) {
+                      dispatch(showToast({ message: 'Failed to export Attendance report.', type: 'error' }));
+                    }
+                  }}
                   className="btn btn-secondary"
-                  target="_blank"
-                  rel="noreferrer"
                   style={{ width: '100%', justifyContent: 'flex-start' }}
                 >
                   <FileSpreadsheet size={18} color="var(--accent-cyan)" />
                   Export Attendance Log CSV
-                </a>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await api.get('/reports/export/employee-csv', { responseType: 'blob' });
+                      const url = window.URL.createObjectURL(new Blob([res.data]));
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `hrms_employee_roster_${new Date().toISOString().slice(0,10)}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                      window.URL.revokeObjectURL(url);
+                      dispatch(showToast({ message: 'Employee roster downloaded to your computer!', type: 'success' }));
+                    } catch (err) {
+                      dispatch(showToast({ message: 'Failed to export Employee roster.', type: 'error' }));
+                    }
+                  }}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'flex-start' }}
+                >
+                  <FileSpreadsheet size={18} color="var(--accent-indigo)" />
+                  Export Employee Roster CSV
+                </button>
               </div>
             </div>
           )}

@@ -3,12 +3,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchAttendanceRecords } from '../store/slices/attendanceSlice';
 import { Clock, FileSpreadsheet, Filter } from 'lucide-react';
 
+import api from '../services/api';
+import { showToast } from '../store/slices/uiSlice';
+
 const AttendancePage = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { records, loading } = useSelector((state) => state.attendance);
 
   const [filterDate, setFilterDate] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     dispatch(fetchAttendanceRecords({ date: filterDate }));
@@ -16,6 +20,29 @@ const AttendancePage = () => {
 
   const role = user?.role || 'EMPLOYEE';
   const canExport = ['ADMIN', 'HR_STAFF', 'MANAGER'].includes(role);
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const response = await api.get('/reports/export/attendance-csv', {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `hrms_attendance_report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      dispatch(showToast({ message: 'Attendance CSV report downloaded to your computer!', type: 'success' }));
+    } catch (err) {
+      console.error('Export error:', err);
+      dispatch(showToast({ message: 'Failed to export Attendance CSV report.', type: 'error' }));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="page-container">
@@ -29,15 +56,14 @@ const AttendancePage = () => {
         </div>
 
         {canExport && (
-          <a
-            href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/export/attendance-csv`}
+          <button
+            onClick={handleExportCSV}
             className="btn btn-secondary"
-            target="_blank"
-            rel="noreferrer"
+            disabled={exporting}
           >
             <FileSpreadsheet size={18} color="var(--accent-emerald)" />
-            Export Attendance CSV
-          </a>
+            {exporting ? 'Exporting...' : 'Export Attendance CSV'}
+          </button>
         )}
       </div>
 
