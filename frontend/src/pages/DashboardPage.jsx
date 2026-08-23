@@ -5,7 +5,7 @@ import { fetchTodayStatus, clockIn, clockOut } from '../store/slices/attendanceS
 import { fetchLeaveBalances, fetchLeaveRequests, fetchLeaveTypes, updateLeaveStatus } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import StatCard from '../components/common/StatCard';
-import UserAccessWidget from '../components/admin/UserAccessWidget';
+import { formatLocalTime } from '../utils/dateUtils';
 import {
   Users,
   Building2,
@@ -176,7 +176,7 @@ const DashboardPage = () => {
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clock In Time</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                    {todayRecord?.clock_in ? new Date(todayRecord.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {formatLocalTime(todayRecord?.clock_in)}
                   </div>
                 </div>
               </div>
@@ -188,7 +188,7 @@ const DashboardPage = () => {
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clock Out Time</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                    {todayRecord?.clock_out ? new Date(todayRecord.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {formatLocalTime(todayRecord?.clock_out)}
                   </div>
                 </div>
               </div>

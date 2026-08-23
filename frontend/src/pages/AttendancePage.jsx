@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchAttendanceRecords } from '../store/slices/attendanceSlice';
 import { Clock, FileSpreadsheet, Filter } from 'lucide-react';
-
 import api from '../services/api';
 import { showToast } from '../store/slices/uiSlice';
+import { formatLocalTime } from '../utils/dateUtils';
 
 const AttendancePage = () => {
   const dispatch = useDispatch();
@@ -121,10 +121,10 @@ const AttendancePage = () => {
                       </div>
                     </td>
                     <td style={{ color: 'var(--accent-emerald)' }}>
-                      {r.clock_in ? new Date(r.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {formatLocalTime(r.clock_in)}
                     </td>
                     <td style={{ color: 'var(--accent-rose)' }}>
-                      {r.clock_out ? new Date(r.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Still Working'}
+                      {r.clock_out ? formatLocalTime(r.clock_out) : 'Still Working'}
                     </td>
                     <td>
                       <strong>{r.total_hours ? `${r.total_hours} hrs` : '--'}</strong>
