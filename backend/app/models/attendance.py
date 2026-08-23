@@ -30,8 +30,8 @@ class AttendanceRecord(db.Model):
             'employee_name': f"{emp.first_name} {emp.last_name}" if emp else None,
             'department_name': emp.department.name if (emp and emp.department) else None,
             'date': self.date.strftime('%Y-%m-%d') if self.date else None,
-            'clock_in': self.clock_in.strftime('%Y-%m-%d %H:%M:%S') if self.clock_in else None,
-            'clock_out': self.clock_out.strftime('%Y-%m-%d %H:%M:%S') if self.clock_out else None,
+            'clock_in': (self.clock_in.isoformat() + 'Z') if self.clock_in else None,
+            'clock_out': (self.clock_out.isoformat() + 'Z') if self.clock_out else None,
             'total_hours': round(self.total_hours, 2) if self.total_hours is not None else 0.0,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None
