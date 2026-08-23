@@ -5,6 +5,7 @@ import { fetchTodayStatus, clockIn, clockOut } from '../store/slices/attendanceS
 import { fetchLeaveBalances, fetchLeaveRequests, fetchLeaveTypes, updateLeaveStatus } from '../store/slices/leaveSlice';
 import { openModal, showToast } from '../store/slices/uiSlice';
 import StatCard from '../components/common/StatCard';
+import UserAccessWidget from '../components/admin/UserAccessWidget';
 import { formatLocalTime } from '../utils/dateUtils';
 import {
   Users,
