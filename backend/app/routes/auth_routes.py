@@ -109,50 +109,65 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json() or {}
-
     try:
-        validated_data = login_schema.load(data)
-    except ValidationError as err:
-        messages = []
-        for field, err_list in err.messages.items():
-            messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
-        first_msg = messages[0] if messages else "Validation failed"
-        return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
+        data = request.get_json() or {}
 
-    email = validated_data['email'].strip().lower()
-    password = validated_data['password']
+        try:
+            validated_data = login_schema.load(data)
+        except ValidationError as err:
+            messages = []
+            for field, err_list in err.messages.items():
+                messages.append(err_list[0] if isinstance(err_list, list) else str(err_list))
+            first_msg = messages[0] if messages else "Validation failed"
+            return jsonify({'success': False, 'message': first_msg, 'errors': err.messages}), 400
 
-    user = User.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        log_audit('LOGIN_FAILED', 'User', details=f"Failed login attempt for {email}")
-        return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
+        email = validated_data['email'].strip().lower()
+        password = validated_data['password']
 
-    # Admin Eligibility Check
-    if not user.is_active:
-        log_audit('LOGIN_BLOCKED', 'User', target_id=user.id, details=f"Inactive account login attempt for {email}")
-        return jsonify({'success': False, 'message': 'Account pending Admin eligibility approval or deactivated.'}), 403
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            try:
+                log_audit('LOGIN_FAILED', 'User', details=f"Failed login attempt for {email}")
+            except Exception:
+                pass
+            return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
 
-    token = generate_token(user)
-    emp = user.employee_profile
-    dept_name = emp.department.name if emp and emp.department else "Unassigned"
-    log_audit('LOGIN_SUCCESS', 'User', target_id=user.id, details=f"User {user.email} ({user.role}) logged in to {dept_name}", user_id=user.id)
+        # Admin Eligibility Check
+        if not user.is_active:
+            try:
+                log_audit('LOGIN_BLOCKED', 'User', target_id=user.id, details=f"Inactive account login attempt for {email}")
+            except Exception:
+                pass
+            return jsonify({'success': False, 'message': 'Account pending Admin eligibility approval or deactivated.'}), 403
 
-    include_sensitive = can_view_sensitive_info(user, emp)
-    emp_data = emp.to_dict(include_sensitive=include_sensitive) if emp else None
+        token = generate_token(user)
+        emp = user.employee_profile
+        dept_name = emp.department.name if (emp and emp.department) else "Unassigned"
 
-    return jsonify({
-        'success': True,
-        'message': 'Login successful',
-        'token': token,
-        'user': {
-            'id': user.id,
-            'email': user.email,
-            'role': user.role,
-            'is_active': user.is_active,
-            'employee': emp_data
-        }
-    })
+        try:
+            log_audit('LOGIN_SUCCESS', 'User', target_id=user.id, details=f"User {user.email} ({user.role}) logged in to {dept_name}", user_id=user.id)
+        except Exception:
+            pass
+
+        include_sensitive = can_view_sensitive_info(user, emp)
+        emp_data = emp.to_dict(include_sensitive=include_sensitive) if emp else None
+
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'token': token,
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'role': user.role,
+                'is_active': user.is_active,
+                'employee': emp_data
+            }
+        })
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Login Error] {err}")
+        return jsonify({'success': False, 'message': f'Login error: {str(err)}'}), 400
 
 @auth_bp.route('/me', methods=['GET'])
 @token_required
