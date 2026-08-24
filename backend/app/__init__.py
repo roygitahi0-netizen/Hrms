@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from app.config import Config
 from app.extensions import db
@@ -12,8 +12,20 @@ def create_app(config_class=Config):
     CORS(app, resources={r"/api/*": {
         "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
     }})
+
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        return response
+
+    @app.route('/api/<path:dummy>', methods=['OPTIONS'])
+    @app.route('/api', methods=['OPTIONS'])
+    def handle_options(dummy=None):
+        return jsonify({'status': 'ok'}), 200
 
     with app.app_context():
         try:
