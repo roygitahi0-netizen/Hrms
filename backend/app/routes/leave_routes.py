@@ -56,6 +56,8 @@ def create_leave_type():
             current_year = datetime.utcnow().year
             employees = Employee.query.filter_by(is_deleted=False).all()
             for emp in employees:
+                if not emp or not emp.id:
+                    continue
                 bal_exists = LeaveBalance.query.filter_by(employee_id=emp.id, leave_type_id=lt.id, year=current_year).first()
                 if not bal_exists:
                     bal = LeaveBalance(
@@ -110,8 +112,11 @@ def update_leave_type(type_id):
                 days = int(data['default_days_per_year'])
                 if days >= 1:
                     lt.default_days_per_year = days
-            except (ValueError, TypeError):
-                pass
+                    # Update allocated days for existing balances in current year
+                    current_year = datetime.utcnow().year
+                    LeaveBalance.query.filter_by(leave_type_id=type_id, year=current_year).update({'allocated_days': days})
+            except (ValueError, TypeError) as val_err:
+                print(f"[Update Days Warning] {val_err}")
 
         if 'description' in data:
             lt.description = data['description'].strip()
