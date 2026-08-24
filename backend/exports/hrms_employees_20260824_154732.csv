@@ -1,0 +1,10 @@
+Employee ID,Employee Code,First Name,Last Name,Work Email,Phone,Department,Position,Status,Role,Hire Date
+1,EMP-001,System,Administrator,admin@teamhub.com,,Engineering,,FULL_TIME,ADMIN,2026-08-24
+2,EMP-002,Jane,Doe,roygitahi0@gmail.com,,Sales & Marketing,,FULL_TIME,EMPLOYEE,2026-08-24
+3,EMP-003,Ryan,Kamau,ryan@gmail.com,,Human Resources,,FULL_TIME,EMPLOYEE,2026-08-24
+4,EMP-004,Ding,Mading,ding@gmail.com,,Human Resources,,FULL_TIME,EMPLOYEE,2026-08-24
+5,EMP-005,Girang,Fima,girang@gmail.com,,Human Resources,,FULL_TIME,EMPLOYEE,2026-08-24
+6,EMP-006,Derrick,Ayieko,derrick@gmail.com,,Sales & Marketing,,FULL_TIME,EMPLOYEE,2026-08-24
+7,EMP-007,Sarah,Connor,sarah@teamhub.com,+15550199,Engineering,,FULL_TIME,EMPLOYEE,2026-08-24
+8,EMP-008,John,Doe,johndoe@teamhub.com,+44207946,Human Resources,,FULL_TIME,MANAGER,2026-08-24
+9,EMP-009,Target,Employee,target_user@teamhub.com,,Engineering,,FULL_TIME,EMPLOYEE,2026-08-24
