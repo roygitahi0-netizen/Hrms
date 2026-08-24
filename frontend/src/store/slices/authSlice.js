@@ -123,6 +123,14 @@ const authSlice = createSlice({
       // Fetch me
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.user = action.payload;
+      })
+      .addCase(fetchCurrentUser.rejected, (state, action) => {
+        localStorage.removeItem('hrms_token');
+        localStorage.removeItem('hrms_user');
+        state.token = null;
+        state.user = null;
+        state.isAuthenticated = false;
+        state.error = action.payload;
       });
   },
 });
