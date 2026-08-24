@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-let rawUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim();
+const ACTIVE_BACKEND = 'https://hrms-backend-qj1f.onrender.com/api';
+let rawUrl = (import.meta.env.VITE_API_URL || ACTIVE_BACKEND).trim();
+
+if (rawUrl.includes('hrms-zhit.onrender.com')) {
+  rawUrl = ACTIVE_BACKEND;
+}
+
 if (rawUrl.endsWith('/')) {
   rawUrl = rawUrl.slice(0, -1);
 }

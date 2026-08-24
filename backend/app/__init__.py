@@ -9,7 +9,11 @@ def create_app(config_class=Config):
 
     # Initialize extensions
     db.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    CORS(app, resources={r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }})
 
     with app.app_context():
         try:
