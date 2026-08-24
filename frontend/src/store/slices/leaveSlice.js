@@ -88,9 +88,12 @@ export const updateLeaveType = createAsyncThunk(
 
 export const deleteLeaveType = createAsyncThunk(
   'leaves/deleteLeaveType',
-  async (id, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
-      await api.delete(`/leaves/types/${id}`);
+      const id = typeof payload === 'object' ? payload.id : payload;
+      const force = typeof payload === 'object' ? payload.force : false;
+      const url = force ? `/leaves/types/${id}?force=true` : `/leaves/types/${id}`;
+      await api.delete(url);
       return id;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete leave type');

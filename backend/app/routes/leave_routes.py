@@ -143,12 +143,17 @@ def delete_leave_type(type_id):
         if not lt:
             return jsonify({'success': False, 'message': 'Leave category not found'}), 404
 
+        force = request.args.get('force', 'false').lower() == 'true'
         req_count = LeaveRequest.query.filter_by(leave_type_id=type_id).count()
-        if req_count > 0:
+
+        if req_count > 0 and not force:
             return jsonify({
                 'success': False,
                 'message': f'Cannot delete category "{lt.name}". It is associated with {req_count} leave requests.'
             }), 400
+
+        if req_count > 0 and force:
+            LeaveRequest.query.filter_by(leave_type_id=type_id).delete()
 
         lt_name = lt.name
         LeaveBalance.query.filter_by(leave_type_id=type_id).delete()
@@ -157,7 +162,7 @@ def delete_leave_type(type_id):
 
         try:
             user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
-            log_audit('DELETE_LEAVE_TYPE', 'LeaveType', target_id=type_id, details=f"Deleted leave category {lt_name}", user_id=user_id)
+            log_audit('DELETE_LEAVE_TYPE', 'LeaveType', target_id=type_id, details=f"Deleted leave category {lt_name} (force={force})", user_id=user_id)
         except Exception as audit_err:
             print(f"[Audit Warning] {audit_err}")
 
