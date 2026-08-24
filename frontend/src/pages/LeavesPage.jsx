@@ -9,8 +9,9 @@ import api from '../services/api';
 const LeavesPage = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const { requests, balances, loading, statusFilter } = useSelector((state) => state.leaves);
+  const { requests, balances, types: leaveTypes, loading, statusFilter } = useSelector((state) => state.leaves);
   const [exporting, setExporting] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   useEffect(() => {
     dispatch(fetchLeaveTypes());
@@ -52,8 +53,9 @@ const LeavesPage = () => {
   };
 
   const filteredRequests = requests.filter((r) => {
-    if (statusFilter === 'ALL') return true;
-    return r.status === statusFilter;
+    const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
+    const matchesCategory = selectedCategory === 'ALL' || r.leave_type_id === Number(selectedCategory);
+    return matchesStatus && matchesCategory;
   });
 
   const role = user?.role || 'EMPLOYEE';
@@ -106,17 +108,34 @@ const LeavesPage = () => {
 
       {/* Request Filters & Table */}
       <div className="glass-card">
-        {/* Tab Filters */}
-        <div style={{ display: 'flex', gap: '0.5rem', padding: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
-          {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((st) => (
-            <button
-              key={st}
-              className={`btn btn-sm ${statusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => dispatch(setStatusFilter(st))}
+        {/* Tab & Category Filters */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((st) => (
+              <button
+                key={st}
+                className={`btn btn-sm ${statusFilter === st ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => dispatch(setStatusFilter(st))}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Filter by Category:</span>
+            <select
+              className="form-control"
+              style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              {st}
-            </button>
-          ))}
+              <option value="ALL">All Leave Categories</option>
+              {leaveTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -125,7 +144,7 @@ const LeavesPage = () => {
           </div>
         ) : filteredRequests.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No leave requests found in this category.
+            No leave requests found matching the selected filters.
           </div>
         ) : (
           <div className="table-container">
