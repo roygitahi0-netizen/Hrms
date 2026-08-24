@@ -199,26 +199,46 @@ def logout():
 @role_required(UserRole.ADMIN, UserRole.HR_STAFF)
 def list_users_eligibility():
     """Admin / HR route to list all users, eligibility status, department, role, and last login time."""
-    users = User.query.all()
-    user_list = []
-    for u in users:
-        emp = u.employee_profile
-        # Find last login audit log entry
-        last_login_log = AuditLog.query.filter_by(user_id=u.id, action='LOGIN_SUCCESS').order_by(AuditLog.timestamp.desc()).first()
-        user_list.append({
-            'id': u.id,
-            'email': u.email,
-            'role': u.role,
-            'is_active': u.is_active,
-            'created_at': u.created_at.isoformat() if u.created_at else None,
-            'last_login': last_login_log.timestamp.isoformat() if last_login_log else None,
-            'employee': emp.to_dict(include_sensitive=False) if emp else None
-        })
+    try:
+        users = User.query.all()
+        user_list = []
+        for u in users:
+            emp = u.employee_profile
+            last_login_log = None
+            try:
+                last_login_log = AuditLog.query.filter_by(user_id=u.id, action='LOGIN_SUCCESS').order_by(AuditLog.timestamp.desc()).first()
+            except Exception:
+                pass
 
-    return jsonify({
-        'success': True,
-        'users': user_list
-    })
+            emp_data = None
+            if emp:
+                try:
+                    emp_data = emp.to_dict(include_sensitive=False)
+                except Exception:
+                    emp_data = {
+                        'id': emp.id,
+                        'full_name': f"{emp.first_name} {emp.last_name}",
+                        'email': emp.email,
+                        'department_name': emp.department.name if emp.department else 'Unassigned'
+                    }
+
+            user_list.append({
+                'id': u.id,
+                'email': u.email,
+                'role': u.role,
+                'is_active': u.is_active,
+                'created_at': u.created_at.isoformat() if u.created_at else None,
+                'last_login': last_login_log.timestamp.isoformat() if (last_login_log and hasattr(last_login_log, 'timestamp') and last_login_log.timestamp) else None,
+                'employee': emp_data
+            })
+
+        return jsonify({
+            'success': True,
+            'users': user_list
+        })
+    except Exception as err:
+        print(f"[List Users Error] {err}")
+        return jsonify({'success': False, 'message': f'Failed to list users: {str(err)}', 'users': []}), 400
 
 @auth_bp.route('/users/<int:user_id>/eligibility', methods=['PUT'])
 @token_required
