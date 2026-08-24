@@ -77,23 +77,24 @@ const LeaveCategoryWidget = () => {
 
     try {
       await dispatch(deleteLeaveType({ id, force: false })).unwrap();
-      dispatch(showToast({ message: `Leave category "${name}" deleted`, type: 'info' }));
+      dispatch(showToast({ message: `Leave category "${name}" deleted successfully`, type: 'info' }));
       dispatch(fetchLeaveTypes());
       dispatch(fetchLeaveBalances());
+      dispatch(fetchLeaveRequests());
     } catch (err) {
-      if (typeof err === 'string' && err.includes('associated with')) {
-        if (window.confirm(`${err}\n\nDo you want to FORCE DELETE category "${name}" and remove all associated leave requests?`)) {
-          try {
-            await dispatch(deleteLeaveType({ id, force: true })).unwrap();
-            dispatch(showToast({ message: `Leave category "${name}" force deleted`, type: 'info' }));
-            dispatch(fetchLeaveTypes());
-            dispatch(fetchLeaveBalances());
-          } catch (forceErr) {
-            dispatch(showToast({ message: forceErr || 'Force delete failed', type: 'error' }));
-          }
+      const errStr = typeof err === 'string' ? err : (err?.message || 'Failed to delete leave type');
+
+      if (window.confirm(`${errStr}\n\nDo you want to FORCE DELETE category "${name}" and remove all associated leave requests?`)) {
+        try {
+          await dispatch(deleteLeaveType({ id, force: true })).unwrap();
+          dispatch(showToast({ message: `Leave category "${name}" force deleted successfully`, type: 'info' }));
+          dispatch(fetchLeaveTypes());
+          dispatch(fetchLeaveBalances());
+          dispatch(fetchLeaveRequests());
+        } catch (forceErr) {
+          const forceMsg = typeof forceErr === 'string' ? forceErr : (forceErr?.message || 'Force delete failed');
+          dispatch(showToast({ message: forceMsg, type: 'error' }));
         }
-      } else {
-        dispatch(showToast({ message: err || 'Delete failed', type: 'error' }));
       }
     }
   };

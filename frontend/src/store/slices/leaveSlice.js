@@ -96,7 +96,8 @@ export const deleteLeaveType = createAsyncThunk(
       await api.delete(url);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete leave type');
+      const message = error.response?.data?.message || error.message || 'Failed to delete leave type';
+      return rejectWithValue(message);
     }
   }
 );
