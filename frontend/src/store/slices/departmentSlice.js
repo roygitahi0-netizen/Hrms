@@ -49,6 +49,30 @@ export const createPosition = createAsyncThunk(
   }
 );
 
+export const updatePosition = createAsyncThunk(
+  'departments/updatePosition',
+  async ({ id, posData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/departments/positions/${id}`, posData);
+      return response.data.position;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update position');
+    }
+  }
+);
+
+export const deletePosition = createAsyncThunk(
+  'departments/deletePosition',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/departments/positions/${id}`);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete position');
+    }
+  }
+);
+
 const departmentSlice = createSlice({
   name: 'departments',
   initialState: {
@@ -83,6 +107,15 @@ const departmentSlice = createSlice({
       })
       .addCase(createPosition.fulfilled, (state, action) => {
         state.positions.push(action.payload);
+      })
+      .addCase(updatePosition.fulfilled, (state, action) => {
+        const index = state.positions.findIndex((p) => p.id === action.payload.id);
+        if (index !== -1) {
+          state.positions[index] = action.payload;
+        }
+      })
+      .addCase(deletePosition.fulfilled, (state, action) => {
+        state.positions = state.positions.filter((p) => p.id !== action.payload);
       });
   },
 });

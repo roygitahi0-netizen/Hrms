@@ -148,7 +148,7 @@ def list_positions():
 
 @department_bp.route('/positions', methods=['POST'])
 @token_required
-@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+@role_required(UserRole.ADMIN, UserRole.MANAGER, UserRole.HR_STAFF)
 def create_position():
     try:
         data = request.get_json() or {}
@@ -182,3 +182,68 @@ def create_position():
         db.session.rollback()
         print(f"[Create Position Error] {err}")
         return jsonify({'success': False, 'message': f'Error creating position: {str(err)}'}), 400
+
+@department_bp.route('/positions/<int:pos_id>', methods=['PUT'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.MANAGER, UserRole.HR_STAFF)
+def update_position(pos_id):
+    try:
+        pos = JobPosition.query.get(pos_id)
+        if not pos:
+            return jsonify({'success': False, 'message': 'Job position not found'}), 404
+
+        data = request.get_json() or {}
+        if 'title' in data and data['title']:
+            pos.title = data['title'].strip()
+        if 'department_id' in data and data['department_id']:
+            dept_id = sanitize_int(data['department_id'])
+            if dept_id and Department.query.get(dept_id):
+                pos.department_id = dept_id
+        if 'description' in data:
+            pos.description = data['description'].strip()
+
+        db.session.commit()
+
+        try:
+            user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
+            log_audit('UPDATE_POSITION', 'JobPosition', target_id=pos.id, details=f"Updated job position {pos.title}", user_id=user_id)
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Job position "{pos.title}" updated successfully',
+            'position': pos.to_dict()
+        })
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Update Position Error] {err}")
+        return jsonify({'success': False, 'message': f'Error updating job position: {str(err)}'}), 400
+
+@department_bp.route('/positions/<int:pos_id>', methods=['DELETE'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.MANAGER, UserRole.HR_STAFF)
+def delete_position(pos_id):
+    try:
+        pos = JobPosition.query.get(pos_id)
+        if not pos:
+            return jsonify({'success': False, 'message': 'Job position not found'}), 404
+
+        if len(pos.employees) > 0:
+            return jsonify({'success': False, 'message': 'Cannot delete position assigned to active employees'}), 400
+
+        title = pos.title
+        db.session.delete(pos)
+        db.session.commit()
+
+        try:
+            user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
+            log_audit('DELETE_POSITION', 'JobPosition', target_id=pos_id, details=f"Deleted job position {title}", user_id=user_id)
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
+
+        return jsonify({'success': True, 'message': f'Job position "{title}" deleted successfully'})
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Delete Position Error] {err}")
+        return jsonify({'success': False, 'message': f'Error deleting job position: {str(err)}'}), 400

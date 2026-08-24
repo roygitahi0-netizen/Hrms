@@ -270,3 +270,31 @@ def test_create_department_empty_manager_id(client):
     assert res.json['success'] is True
     assert res.json['department']['name'] == 'Operations & Logistics'
     assert res.json['department']['manager_id'] is None
+
+def test_position_authorization_and_management(client):
+    admin_login = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    admin_token = admin_login.json['token']
+    admin_headers = {'Authorization': f'Bearer {admin_token}'}
+
+    # 1. Create a Position as Admin
+    pos_res = client.post('/api/departments/positions', json={
+        'title': 'Senior QA Lead',
+        'department_id': 1,
+        'description': 'Leads software quality assurance'
+    }, headers=admin_headers)
+    assert pos_res.status_code == 201
+    pos_id = pos_res.json['position']['id']
+
+    # 2. Update Position as Admin/Manager
+    upd_res = client.put(f'/api/departments/positions/{pos_id}', json={
+        'title': 'Principal QA Lead',
+        'description': 'Principal lead for quality engineering'
+    }, headers=admin_headers)
+    assert upd_res.status_code == 200
+    assert upd_res.json['success'] is True
+    assert upd_res.json['position']['title'] == 'Principal QA Lead'
+
+    # 3. Delete Position as Admin/Manager
+    del_res = client.delete(f'/api/departments/positions/{pos_id}', headers=admin_headers)
+    assert del_res.status_code == 200
+    assert del_res.json['success'] is True

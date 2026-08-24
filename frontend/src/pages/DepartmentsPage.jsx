@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchDepartments, fetchPositions } from '../store/slices/departmentSlice';
-import { openModal } from '../store/slices/uiSlice';
-import { Building2, Plus, Briefcase, Users, UserCheck } from 'lucide-react';
+import { fetchDepartments, fetchPositions, deletePosition, updatePosition } from '../store/slices/departmentSlice';
+import { openModal, showToast } from '../store/slices/uiSlice';
+import { Building2, Plus, Briefcase, Users, UserCheck, Edit, Trash2 } from 'lucide-react';
 
 const DepartmentsPage = () => {
   const dispatch = useDispatch();
@@ -14,7 +14,38 @@ const DepartmentsPage = () => {
     dispatch(fetchPositions());
   }, [dispatch]);
 
-  const isAdminOrHR = ['ADMIN', 'HR_STAFF'].includes(user?.role);
+  const canManagePositions = ['ADMIN', 'MANAGER', 'HR_STAFF'].includes(user?.role);
+
+  const handleEditPosition = async (pos) => {
+    const newTitle = window.prompt(`Edit job position title:`, pos.title);
+    if (newTitle === null || !newTitle.trim()) return;
+
+    const newDesc = window.prompt(`Edit description for "${newTitle.trim()}":`, pos.description || '');
+    if (newDesc === null) return;
+
+    try {
+      await dispatch(updatePosition({
+        id: pos.id,
+        posData: { title: newTitle.trim(), description: newDesc.trim() }
+      })).unwrap();
+      dispatch(showToast({ message: `Job position "${newTitle.trim()}" updated successfully!`, type: 'success' }));
+      dispatch(fetchPositions());
+    } catch (err) {
+      dispatch(showToast({ message: err || 'Failed to update job position.', type: 'error' }));
+    }
+  };
+
+  const handleDeletePosition = async (pos) => {
+    if (window.confirm(`Are you sure you want to delete position "${pos.title}"?`)) {
+      try {
+        await dispatch(deletePosition(pos.id)).unwrap();
+        dispatch(showToast({ message: `Job position "${pos.title}" deleted successfully!`, type: 'success' }));
+        dispatch(fetchPositions());
+      } catch (err) {
+        dispatch(showToast({ message: err || 'Failed to delete position.', type: 'error' }));
+      }
+    }
+  };
 
   return (
     <div className="page-container">
@@ -27,7 +58,7 @@ const DepartmentsPage = () => {
           </p>
         </div>
 
-        {isAdminOrHR && (
+        {canManagePositions && (
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button className="btn btn-secondary" onClick={() => dispatch(openModal({ type: 'department', data: { isPosition: true } }))}>
               <Briefcase size={18} /> Add Position
@@ -85,6 +116,7 @@ const DepartmentsPage = () => {
                 <th>Department</th>
                 <th>Description</th>
                 <th>Created Date</th>
+                {canManagePositions && <th>Management Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -94,6 +126,26 @@ const DepartmentsPage = () => {
                   <td><span className="badge badge-manager">{pos.department_name}</span></td>
                   <td style={{ color: 'var(--text-secondary)' }}>{pos.description || 'N/A'}</td>
                   <td>{pos.created_at ? new Date(pos.created_at).toLocaleDateString() : 'N/A'}</td>
+                  {canManagePositions && (
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleEditPosition(pos)}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          <Edit size={13} /> Edit
+                        </button>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleDeletePosition(pos)}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
