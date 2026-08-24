@@ -13,5 +13,8 @@ class Config:
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'hrms-jwt-secret-key-secure-token-2026')
     SQLALCHEMY_DATABASE_URI = db_url or ('sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), '../hrms.db'))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 280,
+    }
     JWT_ACCESS_TOKEN_EXPIRES = 86400  # 24 hours in seconds
-
