@@ -21,102 +21,154 @@ def list_leave_types():
 
 @leave_bp.route('/types', methods=['POST'])
 @token_required
-@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF, UserRole.MANAGER)
 def create_leave_type():
-    data = request.get_json() or {}
-    name = data.get('name', '').strip()
-    default_days = data.get('default_days_per_year', 20)
-    description = data.get('description', '').strip()
+    try:
+        data = request.get_json() or {}
+        name = data.get('name', '').strip()
+        default_days_raw = data.get('default_days_per_year', 20)
+        description = data.get('description', '').strip()
 
-    if not name:
-        return jsonify({'success': False, 'message': 'Leave category name is required'}), 400
+        if not name:
+            return jsonify({'success': False, 'message': 'Leave category name is required'}), 400
 
-    existing = LeaveType.query.filter_by(name=name).first()
-    if existing:
-        return jsonify({'success': False, 'message': f'Leave category "{name}" already exists'}), 400
+        try:
+            default_days = int(default_days_raw)
+            if default_days < 1:
+                default_days = 20
+        except (ValueError, TypeError):
+            default_days = 20
 
-    lt = LeaveType(
-        name=name,
-        default_days_per_year=int(default_days),
-        description=description
-    )
-    db.session.add(lt)
-    db.session.commit()
+        existing = LeaveType.query.filter(db.func.lower(LeaveType.name) == name.lower()).first()
+        if existing:
+            return jsonify({'success': False, 'message': f'Leave category "{name}" already exists'}), 400
 
-    # Automatically provision LeaveBalance for all current employees for this new category
-    current_year = datetime.utcnow().year
-    employees = Employee.query.filter_by(is_deleted=False).all()
-    for emp in employees:
-        bal_exists = LeaveBalance.query.filter_by(employee_id=emp.id, leave_type_id=lt.id, year=current_year).first()
-        if not bal_exists:
-            bal = LeaveBalance(
-                employee_id=emp.id,
-                leave_type_id=lt.id,
-                year=current_year,
-                allocated_days=lt.default_days_per_year,
-                used_days=0
-            )
-            db.session.add(bal)
+        lt = LeaveType(
+            name=name,
+            default_days_per_year=default_days,
+            description=description
+        )
+        db.session.add(lt)
+        db.session.commit()
 
-    db.session.commit()
+        # Automatically provision LeaveBalance for all current employees for this new category
+        try:
+            current_year = datetime.utcnow().year
+            employees = Employee.query.filter_by(is_deleted=False).all()
+            for emp in employees:
+                bal_exists = LeaveBalance.query.filter_by(employee_id=emp.id, leave_type_id=lt.id, year=current_year).first()
+                if not bal_exists:
+                    bal = LeaveBalance(
+                        employee_id=emp.id,
+                        leave_type_id=lt.id,
+                        year=current_year,
+                        allocated_days=lt.default_days_per_year,
+                        used_days=0
+                    )
+                    db.session.add(bal)
+            db.session.commit()
+        except Exception as bal_err:
+            db.session.rollback()
+            print(f"[LeaveBalance Provisioning Warning] {bal_err}")
 
-    log_audit('CREATE_LEAVE_TYPE', 'LeaveType', target_id=lt.id, details=f"Created leave category {name} ({default_days} days/yr)", user_id=g.current_user.id)
+        try:
+            user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
+            log_audit('CREATE_LEAVE_TYPE', 'LeaveType', target_id=lt.id, details=f"Created leave category {name} ({default_days} days/yr)", user_id=user_id)
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
 
-    return jsonify({
-        'success': True,
-        'message': f'Leave category "{name}" created successfully with employee allocations',
-        'leave_type': lt.to_dict()
-    }), 201
+        return jsonify({
+            'success': True,
+            'message': f'Leave category "{name}" created successfully with employee allocations',
+            'leave_type': lt.to_dict()
+        }), 201
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Create Leave Type Error] {err}")
+        return jsonify({'success': False, 'message': f'Error creating leave category: {str(err)}'}), 400
 
 @leave_bp.route('/types/<int:type_id>', methods=['PUT'])
 @token_required
-@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF, UserRole.MANAGER)
 def update_leave_type(type_id):
-    lt = LeaveType.query.get_or_404(type_id)
-    data = request.get_json() or {}
+    try:
+        lt = LeaveType.query.get(type_id)
+        if not lt:
+            return jsonify({'success': False, 'message': 'Leave category not found'}), 404
 
-    if 'name' in data and data['name'].strip():
-        lt.name = data['name'].strip()
-    if 'default_days_per_year' in data:
-        lt.default_days_per_year = int(data['default_days_per_year'])
-    if 'description' in data:
-        lt.description = data['description'].strip()
+        data = request.get_json() or {}
 
-    db.session.commit()
+        if 'name' in data and data['name'].strip():
+            new_name = data['name'].strip()
+            existing = LeaveType.query.filter(db.func.lower(LeaveType.name) == new_name.lower(), LeaveType.id != type_id).first()
+            if existing:
+                return jsonify({'success': False, 'message': f'Another leave category with name "{new_name}" already exists'}), 400
+            lt.name = new_name
 
-    log_audit('UPDATE_LEAVE_TYPE', 'LeaveType', target_id=lt.id, details=f"Updated leave category {lt.name}", user_id=g.current_user.id)
+        if 'default_days_per_year' in data:
+            try:
+                days = int(data['default_days_per_year'])
+                if days >= 1:
+                    lt.default_days_per_year = days
+            except (ValueError, TypeError):
+                pass
 
-    return jsonify({
-        'success': True,
-        'message': f'Leave category "{lt.name}" updated successfully',
-        'leave_type': lt.to_dict()
-    })
+        if 'description' in data:
+            lt.description = data['description'].strip()
+
+        db.session.commit()
+
+        try:
+            user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
+            log_audit('UPDATE_LEAVE_TYPE', 'LeaveType', target_id=lt.id, details=f"Updated leave category {lt.name}", user_id=user_id)
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Leave category "{lt.name}" updated successfully',
+            'leave_type': lt.to_dict()
+        })
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Update Leave Type Error] {err}")
+        return jsonify({'success': False, 'message': f'Error updating leave category: {str(err)}'}), 400
 
 @leave_bp.route('/types/<int:type_id>', methods=['DELETE'])
 @token_required
-@role_required(UserRole.ADMIN, UserRole.HR_STAFF)
+@role_required(UserRole.ADMIN, UserRole.HR_STAFF, UserRole.MANAGER)
 def delete_leave_type(type_id):
-    lt = LeaveType.query.get_or_404(type_id)
+    try:
+        lt = LeaveType.query.get(type_id)
+        if not lt:
+            return jsonify({'success': False, 'message': 'Leave category not found'}), 404
 
-    # Check if category is referenced by active leave requests
-    req_count = LeaveRequest.query.filter_by(leave_type_id=type_id).count()
-    if req_count > 0:
+        req_count = LeaveRequest.query.filter_by(leave_type_id=type_id).count()
+        if req_count > 0:
+            return jsonify({
+                'success': False,
+                'message': f'Cannot delete category "{lt.name}". It is associated with {req_count} leave requests.'
+            }), 400
+
+        lt_name = lt.name
+        LeaveBalance.query.filter_by(leave_type_id=type_id).delete()
+        db.session.delete(lt)
+        db.session.commit()
+
+        try:
+            user_id = g.current_user.id if hasattr(g, 'current_user') and g.current_user else None
+            log_audit('DELETE_LEAVE_TYPE', 'LeaveType', target_id=type_id, details=f"Deleted leave category {lt_name}", user_id=user_id)
+        except Exception as audit_err:
+            print(f"[Audit Warning] {audit_err}")
+
         return jsonify({
-            'success': False,
-            'message': f'Cannot delete category "{lt.name}". It is associated with {req_count} leave requests.'
-        }), 400
-
-    # Clean up balances and delete type
-    LeaveBalance.query.filter_by(leave_type_id=type_id).delete()
-    db.session.delete(lt)
-    db.session.commit()
-
-    log_audit('DELETE_LEAVE_TYPE', 'LeaveType', target_id=type_id, details=f"Deleted leave category {lt.name}", user_id=g.current_user.id)
-
-    return jsonify({
-        'success': True,
-        'message': f'Leave category "{lt.name}" deleted successfully'
-    })
+            'success': True,
+            'message': f'Leave category "{lt_name}" deleted successfully'
+        })
+    except Exception as err:
+        db.session.rollback()
+        print(f"[Delete Leave Type Error] {err}")
+        return jsonify({'success': False, 'message': f'Error deleting leave category: {str(err)}'}), 400
 
 
 @leave_bp.route('/balances', methods=['GET'])

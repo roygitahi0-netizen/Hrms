@@ -18,7 +18,7 @@ const LeaveCategoryWidget = () => {
   });
 
   const role = user?.role || 'EMPLOYEE';
-  const isAdminOrHR = ['ADMIN', 'HR_STAFF'].includes(role);
+  const isAdminOrHR = ['ADMIN', 'HR_STAFF', 'MANAGER'].includes(role);
 
   if (!isAdminOrHR) return null;
 

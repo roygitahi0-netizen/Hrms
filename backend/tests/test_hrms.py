@@ -298,3 +298,20 @@ def test_position_authorization_and_management(client):
     del_res = client.delete(f'/api/departments/positions/{pos_id}', headers=admin_headers)
     assert del_res.status_code == 200
     assert del_res.json['success'] is True
+
+def test_create_leave_category_maternity_leave(client):
+    admin_login = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    admin_token = admin_login.json['token']
+    admin_headers = {'Authorization': f'Bearer {admin_token}'}
+
+    # Create new leave category "Maternity Leave" with 20 default days
+    res = client.post('/api/leaves/types', json={
+        'name': 'Maternity Leave',
+        'default_days_per_year': 20,
+        'description': 'Getting a child'
+    }, headers=admin_headers)
+
+    assert res.status_code == 201
+    assert res.json['success'] is True
+    assert res.json['leave_type']['name'] == 'Maternity Leave'
+    assert res.json['leave_type']['default_days_per_year'] == 20
