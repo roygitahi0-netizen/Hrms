@@ -252,3 +252,21 @@ def test_report_exports_and_local_file_saving(client):
     assert emp_res.status_code == 200
     assert emp_res.json['success'] is True
     assert os.path.exists(emp_res.json['file_path'])
+
+def test_create_department_empty_manager_id(client):
+    admin_login = client.post('/api/auth/login', json={'email': 'admin@teamhub.com', 'password': 'admin123'})
+    admin_token = admin_login.json['token']
+    headers = {'Authorization': f'Bearer {admin_token}'}
+
+    # Test creating department with empty string manager_id (No Manager Assigned)
+    res = client.post('/api/departments', json={
+        'name': 'Operations & Logistics',
+        'code': 'OPS',
+        'description': 'Supply chain and logistics management',
+        'manager_id': ''
+    }, headers=headers)
+
+    assert res.status_code == 201
+    assert res.json['success'] is True
+    assert res.json['department']['name'] == 'Operations & Logistics'
+    assert res.json['department']['manager_id'] is None
